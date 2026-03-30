@@ -78,6 +78,55 @@ Out of scope for v1:
 - automatic provider routing
 - hosted backend services
 
+## Roadmap
+
+### Providers
+
+- [ ] OpenAI — API key + CLI OAuth login
+- [ ] Google Gemini — API key + CLI OAuth login
+- [ ] Anthropic Claude — API key support
+- [ ] Multi-provider fallback — auto-failover between configured providers
+- [ ] Provider health dashboard — per-provider status, last successful call, rate-limit indicators
+
+### UI/UX
+
+- [ ] Conversation search — full-text search across message history
+- [ ] Message editing — edit and regenerate assistant responses
+- [ ] Branch conversations — fork a conversation at any message
+- [ ] Conversation export — Markdown, JSON, and PDF export per conversation
+- [ ] Import conversations — restore from exported files
+- [ ] Keyboard shortcuts — quick model switch, new chat, search, settings
+- [ ] Custom system prompts — per-conversation or global default
+- [ ] Image input / vision — drag-and-drop images into the composer
+- [ ] Code block copy button — one-click copy on rendered code blocks
+- [ ] Syntax highlighting — language-specific code highlighting
+- [ ] Theme support — light mode, custom accent colors
+- [ ] Window management — remember window size, position, sidebar state
+
+### Core features
+
+- [ ] Conversation memory — long-term memory with vector embeddings stored locally
+- [ ] Session management — named sessions within a conversation, separate context windows
+- [ ] Token budget controls — per-conversation or global max-token limits
+- [ ] Cost tracking — estimated cost per message and per conversation
+- [ ] Rate-limit handling — automatic backoff and user-friendly rate-limit indicators
+- [ ] Offline mode — view history and draft messages without a network connection
+- [ ] Model comparison — send the same prompt to multiple models side by side
+- [ ] Prompt templates — save and reuse common prompt patterns
+- [ ] Auto-title conversations — generate titles from first message
+- [ ] Conversation folders / tags — organize conversations with labels
+- [ ] Streaming resume — reconnect and resume interrupted streams
+- [ ] Tool / function calling — model tool use with local tool execution
+- [ ] Structured output — JSON mode for models that support it
+
+### Platform
+
+- [ ] Auto-updates — built-in update checker and silent background downloads
+- [ ] Native menus — proper macOS/Windows/Linux application menus
+- [ ] Tray icon — background operation with tray notifications
+- [ ] Portable mode — run without installation (Windows/Linux)
+- [ ] Code signing & notarization — macOS notarization, Windows code signing
+
 ## Repository layout
 
 ```text
