@@ -2,7 +2,10 @@ import { join } from 'node:path';
 import { BrowserWindow, type Event, type HandlerDetails } from 'electron/main';
 import { shell } from 'electron/common';
 
+import { getAppIconPath } from './iconPath';
+
 export function createWindow() {
+  const icon = getAppIconPath();
   const window = new BrowserWindow({
     width: 1480,
     height: 960,
@@ -12,6 +15,7 @@ export function createWindow() {
     autoHideMenuBar: true,
     backgroundColor: '#060709',
     titleBarStyle: 'hiddenInset',
+    ...(icon ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,

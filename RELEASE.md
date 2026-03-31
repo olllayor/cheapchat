@@ -31,8 +31,8 @@ Use this checklist for each release to ensure nothing is missed.
    ```
 
 3. The release workflow will automatically:
-   - Build for macOS, Linux, and Windows
-   - Create a GitHub Release draft with all binaries
+   - Build macOS binaries
+   - Create a GitHub Release draft and upload the build artifacts
 
 4. Review the release draft:
    - Edit the release notes (copy from CHANGELOG.md)

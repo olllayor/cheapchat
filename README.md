@@ -176,7 +176,7 @@ Then push the tag to trigger the release workflow:
 git push && git push --tags
 ```
 
-This triggers the CI release workflow which builds and publishes binaries for macOS, Linux, and Windows as a GitHub Release draft.
+This triggers the CI release workflow, which builds macOS binaries and uploads them to a GitHub Release draft.
 
 ## Security
 

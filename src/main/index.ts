@@ -5,6 +5,7 @@ import { ChatEngine } from './ai/core/ChatEngine';
 import { ModelRegistry } from './ai/core/ModelRegistry';
 import { OpenRouterProvider } from './ai/providers/openrouter';
 import { createWindow } from './bootstrap/createWindow';
+import { getAppIconPath } from './bootstrap/iconPath';
 import { createAppDatabase } from './db/client';
 import { registerChatIpc } from './ipc/chat';
 import { registerConversationsIpc } from './ipc/conversations';
@@ -15,6 +16,11 @@ import { KeychainStore } from './secrets/keychain';
 app.setName('CheapChat');
 
 app.whenReady().then(async () => {
+  const icon = getAppIconPath();
+  if (process.platform === 'darwin' && icon && app.dock) {
+    app.dock.setIcon(icon);
+  }
+
   const database = createAppDatabase(join(app.getPath('userData'), 'cheapchat.db'));
   const keychain = new KeychainStore();
   const openRouter = new OpenRouterProvider();
