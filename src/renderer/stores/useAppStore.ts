@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 import type {
+  ChatMessagePart,
   ConversationDetail,
   ConversationSummary,
   ModelSummary,
@@ -9,13 +10,13 @@ import type {
   SettingsSummary,
   StreamEvent
 } from '../../shared/contracts';
+import { applyStreamEventToParts } from '../../shared/messageParts';
 
 type DraftState = {
   requestId: string;
   providerId: ProviderId;
   modelId: string;
-  content: string;
-  reasoning: string;
+  parts: ChatMessagePart[];
   status: 'streaming' | 'error' | 'aborted';
   errorMessage?: string;
   inputTokens?: number;
@@ -400,6 +401,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       providerId: 'openrouter' as const,
       modelId,
       messages: [...completeMessages, { role: 'user' as const, content: trimmed }],
+      enableTools: Boolean(state.models.find((model) => model.id === modelId)?.supportsTools),
       temperature: 0.65
     });
 
@@ -418,6 +420,14 @@ export const useAppStore = create<AppState>((set, get) => ({
               role: 'user' as const,
               content: trimmed,
               reasoning: null,
+              parts: [
+                {
+                  id: `text-${request.requestId}`,
+                  type: 'text' as const,
+                  text: trimmed,
+                  state: 'done' as const
+                }
+              ],
               status: 'complete' as const,
               providerId: 'openrouter' as const,
               modelId,
@@ -437,8 +447,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           requestId: request.requestId,
           providerId: 'openrouter' as const,
           modelId,
-          content: '',
-          reasoning: '',
+          parts: [],
           status: 'streaming' as const,
           startedAt: now
         }
@@ -480,7 +489,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
 
-    if (event.type === 'chunk') {
+    if (
+      event.type === 'chunk' ||
+      event.type === 'reasoning' ||
+      event.type === 'tool-input-start' ||
+      event.type === 'tool-input-delta' ||
+      event.type === 'tool-input-available' ||
+      event.type === 'tool-output-available' ||
+      event.type === 'tool-output-error' ||
+      event.type === 'tool-output-denied'
+    ) {
       set((state) => {
         const draft = state.draftsByConversation[conversationId];
         if (!draft) {
@@ -492,27 +510,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             ...state.draftsByConversation,
             [conversationId]: {
               ...draft,
-              content: `${draft.content}${event.delta}`
-            }
-          }
-        };
-      });
-      return;
-    }
-
-    if (event.type === 'reasoning') {
-      set((state) => {
-        const draft = state.draftsByConversation[conversationId];
-        if (!draft) {
-          return state;
-        }
-
-        return {
-          draftsByConversation: {
-            ...state.draftsByConversation,
-            [conversationId]: {
-              ...draft,
-              reasoning: `${draft.reasoning}${event.delta}`
+              parts: applyStreamEventToParts(draft.parts, event)
             }
           }
         };

@@ -113,7 +113,7 @@ export const Reasoning = ({
       <Collapsible onOpenChange={setIsOpen} open={isOpen} {...props}>
         <div
           className={cn(
-            "w-full rounded-[18px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]",
+            "w-full rounded-[20px] border border-white/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.018))] shadow-[0_16px_36px_-28px_rgba(0,0,0,0.72),inset_0_1px_0_rgba(255,255,255,0.03)] backdrop-blur-sm",
             className
           )}
         >
@@ -139,33 +139,46 @@ export const ReasoningTrigger = ({
 
   const defaultLabel = getThinkingMessage?.(isStreaming, duration) ?? (
     <>
-      <span className="inline-flex items-center gap-2 text-white/72">
-        {isStreaming ? <Spinner className="size-3.5 text-[#90a6ff]" /> : <BrainCircuit className="size-3.5 text-[#90a6ff]" />}
-        <span>{isStreaming ? "Reasoning" : "Thought process"}</span>
-      </span>
-      {durationLabel ? (
-        <span className="rounded-full border border-white/8 bg-white/[0.03] px-2 py-0.5 text-[10px] font-medium tabular-nums text-white/46">
-          {durationLabel}
+      <div className="flex min-w-0 items-center gap-2.5">
+        <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-[12px] border border-white/6 bg-[linear-gradient(180deg,rgba(157,176,255,0.12),rgba(157,176,255,0.05))] text-[#aab8ff] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+          {isStreaming ? <Spinner className="size-3.5 text-[#aab8ff]" /> : <BrainCircuit className="size-3.5 text-[#aab8ff]" />}
         </span>
-      ) : null}
+        <div className="min-w-0">
+          <div className="truncate text-[13.5px] font-medium tracking-[-0.02em] text-white/90">
+            {isStreaming ? "Reasoning" : "Thought process"}
+          </div>
+          <div className="pt-0.5 text-[10.5px] text-white/36">
+            Reasoning notes
+          </div>
+        </div>
+      </div>
     </>
   );
 
   return (
     <CollapsibleTrigger
       className={cn(
-        "flex w-full items-center justify-between gap-3 px-3.5 py-2.5 text-left text-[11px] font-medium tracking-[0.01em] transition hover:bg-white/[0.025]",
+        "flex w-full items-center justify-between gap-3.5 px-3.5 py-3 text-left transition hover:bg-white/[0.018]",
         className
       )}
       {...props}
     >
-      {children ?? defaultLabel}
-      <ChevronDown
-        className={cn(
-          "size-3.5 shrink-0 text-white/38 transition-transform duration-200",
-          isOpen && "rotate-180"
-        )}
-      />
+      <div className="flex min-w-0 items-center gap-2.5">
+        {children ?? defaultLabel}
+        {durationLabel ? (
+          <span className="shrink-0 rounded-full border border-white/8 bg-white/[0.03] px-2.25 py-0.75 text-[9.5px] font-medium tabular-nums text-white/48 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]">
+            {durationLabel}
+          </span>
+        ) : null}
+      </div>
+      <span className="inline-flex size-7.5 shrink-0 items-center justify-center rounded-full border border-white/6 bg-white/[0.03] text-white/34 transition">
+        <ChevronDown
+          className={cn(
+            "size-3.25 transition-transform duration-200",
+            isOpen && "rotate-180"
+          )}
+        />
+      </span>
     </CollapsibleTrigger>
   );
 };
@@ -180,10 +193,10 @@ export const ReasoningContent = ({
   ...props
 }: ReasoningContentProps) => (
   <CollapsibleContent
-    className={cn("overflow-hidden border-t border-white/7 px-3.5 pb-3.5 pt-2.5", className)}
+    className={cn("overflow-hidden border-t border-white/6 px-3.5 pb-3.5 pt-2.5", className)}
     {...props}
   >
-    <MessageResponse className="text-[13px] leading-6 text-white/60 [&_p]:my-1 [&_p+_p]:mt-1.5 [&_[data-streamdown='inline-code']]:bg-white/[0.03] [&_[data-streamdown='inline-code']]:text-white/78 [&_pre]:text-[12.5px]">
+    <MessageResponse className="text-[13px] leading-[1.7] text-white/66 [&_p]:my-1 [&_p+_p]:mt-1.5 [&_[data-streamdown='inline-code']]:bg-white/[0.03] [&_[data-streamdown='inline-code']]:text-white/78 [&_pre]:text-[12.5px]">
       {children}
     </MessageResponse>
   </CollapsibleContent>

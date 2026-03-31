@@ -2,6 +2,7 @@ import { ArrowUp, Square } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ConversationDetail, ModelSummary } from '../../shared/contracts';
+import { getTextContentFromParts } from '../../shared/messageParts';
 import { ModelSelector } from './ModelSelector';
 import {
   Context,
@@ -100,6 +101,7 @@ export function Composer({
     const fallbackConversationInput =
       detail?.messages.reduce((sum, message) => sum + estimateTokens(message.content), 0) ?? 0;
     const pendingInput = draft ? 0 : estimateTokens(value);
+    const draftText = draft ? getTextContentFromParts(draft.parts) : '';
 
     const inputTokens =
       Math.max(
@@ -125,7 +127,7 @@ export function Composer({
         outputTokens,
         reasoningTokens,
       },
-      usedTokens: inputTokens + outputTokens,
+      usedTokens: Math.max(inputTokens + outputTokens, estimateTokens(draftText) + outputTokens),
     };
   }, [detail, draft, selectedModel, value]);
 

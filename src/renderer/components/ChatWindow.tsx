@@ -2,6 +2,7 @@ import {
   AlertCircle,
   Bug,
   Check,
+  CheckCircle2,
   Code2,
   Copy,
   FileText,
@@ -11,6 +12,7 @@ import {
   RefreshCw,
   Search,
   StopCircle,
+  XCircle,
 } from 'lucide-react';
 
 import type { ConversationDetail } from '../../shared/contracts';
@@ -23,11 +25,20 @@ import {
 } from './ai-elements/conversation';
 import { MessageResponse } from './ai-elements/message';
 import {
+  Confirmation,
+  ConfirmationAccepted,
+  ConfirmationRejected,
+  ConfirmationRequest,
+  ConfirmationTitle,
+} from './ai-elements/confirmation';
+import {
   Reasoning,
   ReasoningContent,
   ReasoningTrigger,
 } from './ai-elements/reasoning';
+import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from './ai-elements/tool';
 import { useClipboard } from '../hooks/useClipboard';
+import type { ChatMessagePart } from '../../shared/contracts';
 
 type ChatWindowProps = {
   detail: ConversationDetail | null;
@@ -82,35 +93,139 @@ function MessageMeta({
 }
 
 function ReasoningRow({
-  reasoning,
+  text,
   isStreaming = false,
   latencyMs,
 }: {
-  reasoning?: string | null;
+  text?: string | null;
   isStreaming?: boolean;
   latencyMs?: number | null;
 }) {
-  if (!reasoning?.trim()) {
+  if (!text?.trim()) {
     return null;
   }
 
   return (
     <Reasoning
-      className="mb-3"
+      className="mb-2.5"
       defaultOpen={false}
       duration={latencyMs ? Math.max(1, Math.round(latencyMs / 1000)) : undefined}
       isStreaming={isStreaming}
     >
       <ReasoningTrigger />
-      <ReasoningContent>{reasoning}</ReasoningContent>
+      <ReasoningContent>{text}</ReasoningContent>
     </Reasoning>
+  );
+}
+
+function ToolRow({ part }: { part: Extract<ChatMessagePart, { type: 'tool' }> }) {
+  const isOutputState =
+    part.state === 'output-available' ||
+    part.state === 'output-error' ||
+    part.state === 'output-denied';
+  const hasInput = part.rawInput != null || part.input != null;
+  const hasOutput = part.output != null || Boolean(part.errorText) || part.state === 'output-denied';
+  const hasApproval = Boolean(part.approval);
+  const resolvedName = part.title?.trim() || part.toolName.replace(/[_-]+/g, ' ');
+
+  return (
+    <Tool className="mb-2.5" defaultOpen={isOutputState}>
+      <ToolHeader
+        type={part.dynamic ? 'dynamic-tool' : `tool-${part.toolName}`}
+        toolName={part.toolName}
+        title={part.title}
+        state={part.state}
+      />
+      {(hasInput || hasOutput || hasApproval) ? (
+        <ToolContent>
+          <Confirmation approval={part.approval} state={part.state} className={hasInput || hasOutput ? 'mb-3' : undefined}>
+            <ConfirmationTitle>Tool approval</ConfirmationTitle>
+            <ConfirmationRequest>
+              <div>
+                Approve running <span className="font-medium text-white/86">{resolvedName}</span>.
+              </div>
+              {part.input ? (
+                <pre className="mt-2 overflow-x-auto rounded-[12px] border border-white/6 bg-black/20 px-3 py-2 font-mono text-[11px] leading-5 text-white/58">
+                  {JSON.stringify(part.input, null, 2)}
+                </pre>
+              ) : null}
+            </ConfirmationRequest>
+            <ConfirmationAccepted>
+              <CheckCircle2 className="size-4" />
+              <span>Tool execution approved</span>
+            </ConfirmationAccepted>
+            <ConfirmationRejected>
+              <XCircle className="size-4" />
+              <span>Tool execution rejected</span>
+            </ConfirmationRejected>
+          </Confirmation>
+          {hasInput ? (
+            <ToolInput input={part.input ?? part.rawInput ?? ''} />
+          ) : null}
+          {hasOutput ? (
+            <ToolOutput
+              errorText={part.state === 'output-denied' ? 'Tool execution was denied.' : part.errorText}
+              output={part.output}
+              className={hasInput ? 'mt-3' : undefined}
+            />
+          ) : null}
+        </ToolContent>
+      ) : null}
+    </Tool>
+  );
+}
+
+function AssistantParts({
+  isStreaming = false,
+  latencyMs,
+  parts,
+}: {
+  isStreaming?: boolean;
+  latencyMs?: number | null;
+  parts: ChatMessagePart[];
+}) {
+  if (parts.length === 0) {
+    return isStreaming ? (
+      <div className="text-[13.5px] font-medium text-text-muted">Thinking...</div>
+    ) : null;
+  }
+
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (part.type === 'reasoning') {
+          return (
+            <ReasoningRow
+              key={`reasoning-${index}`}
+              text={part.text}
+              latencyMs={latencyMs}
+              isStreaming={isStreaming}
+            />
+          );
+        }
+
+        if (part.type === 'tool') {
+          return <ToolRow key={part.toolCallId} part={part} />;
+        }
+
+        return (
+          <MessageResponse
+            key={`text-${index}`}
+            className="text-[15.5px] leading-[1.85] tracking-[-0.01em] text-text-primary"
+            isAnimating={isStreaming && index === parts.length - 1}
+          >
+            {part.text}
+          </MessageResponse>
+        );
+      })}
+    </>
   );
 }
 
 function MessageRow({
   role,
   content,
-  reasoning,
+  parts,
   latencyMs,
   modelLabel,
   isLast,
@@ -118,7 +233,7 @@ function MessageRow({
 }: {
   role: 'user' | 'assistant' | 'system';
   content: string;
-  reasoning?: string | null;
+  parts: ChatMessagePart[];
   latencyMs?: number | null;
   modelLabel?: string | null;
   isLast: boolean;
@@ -153,14 +268,8 @@ function MessageRow({
 
   return (
     <div className="group flex w-full">
-      <div className="min-w-0 max-w-[min(100%,84ch)] flex-1">
-        <ReasoningRow latencyMs={latencyMs} reasoning={reasoning} />
-
-        {content.trim() ? (
-          <MessageResponse className="text-[15.5px] leading-[1.85] tracking-[-0.01em] text-text-primary">
-            {content}
-          </MessageResponse>
-        ) : null}
+      <div className="min-w-0 max-w-[min(100%,82ch)] flex-1">
+        <AssistantParts latencyMs={latencyMs} parts={parts} />
 
         <MessageMeta latencyMs={latencyMs} modelLabel={modelLabel} />
 
@@ -190,14 +299,12 @@ function MessageRow({
 }
 
 function StreamingRow({
-  content,
-  reasoning,
+  parts,
   modelLabel,
   errorMessage,
   status,
 }: {
-  content: string;
-  reasoning?: string;
+  parts: ChatMessagePart[];
   modelLabel?: string;
   errorMessage?: string;
   status: 'streaming' | 'error' | 'aborted';
@@ -208,8 +315,6 @@ function StreamingRow({
   return (
     <div className="group flex w-full">
       <div className="min-w-0 max-w-[min(100%,84ch)] flex-1">
-        <ReasoningRow isStreaming={status === 'streaming'} reasoning={reasoning} />
-
         {isError ? (
           <div className="rounded-2xl border border-error-border bg-error-bg p-4">
             <div className="flex items-start gap-3">
@@ -227,21 +332,9 @@ function StreamingRow({
               <p className="text-sm text-text-muted">Generation stopped</p>
             </div>
           </div>
-        ) : content ? (
-          <>
-            <MessageResponse className="text-[15.5px] leading-[1.85] tracking-[-0.01em] text-text-primary" isAnimating={status === 'streaming'}>
-              {content}
-            </MessageResponse>
-
-            <MessageMeta modelLabel={modelLabel} status={status} />
-          </>
-        ) : reasoning?.trim() ? (
-          <MessageMeta modelLabel={modelLabel} status={status} />
         ) : (
           <>
-            <div className="text-[13.5px] font-medium text-text-muted">
-              Thinking...
-            </div>
+            <AssistantParts isStreaming={status === 'streaming'} parts={parts} />
             <MessageMeta modelLabel={modelLabel} status={status} />
           </>
         )}
@@ -318,7 +411,7 @@ export function ChatWindow({ detail, draft, hasCredential, onOpenSettings, onSug
                 key={message.id}
                 role={message.role}
                 content={message.content}
-                reasoning={message.reasoning}
+                parts={message.parts}
                 latencyMs={message.status === 'complete' ? message.latencyMs : null}
                 modelLabel={message.role === 'assistant' ? message.modelId : undefined}
                 isLast={isLast}
@@ -328,8 +421,7 @@ export function ChatWindow({ detail, draft, hasCredential, onOpenSettings, onSug
 
           {draft && (
             <StreamingRow
-              content={draft.content}
-              reasoning={draft.reasoning}
+              parts={draft.parts}
               modelLabel={draft.modelId}
               errorMessage={draft.errorMessage}
               status={draft.status}

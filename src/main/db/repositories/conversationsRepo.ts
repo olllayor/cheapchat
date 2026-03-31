@@ -1,13 +1,17 @@
 import { randomUUID } from 'node:crypto';
 
+import type { ModelMessage } from 'ai';
+
 import type {
   ChatMessage,
+  ChatMessagePart,
   ConversationDetail,
   ConversationSummary,
   MessageRole,
   MessageStatus,
   ProviderId
 } from '../../../shared/contracts';
+import { buildFallbackMessageParts, getReasoningContentFromParts, getTextContentFromParts } from '../../../shared/messageParts';
 import type { SqliteDatabase } from '../client';
 
 type ConversationRow = {
@@ -36,6 +40,8 @@ type MessageRow = {
   role: MessageRole;
   content: string;
   reasoning: string | null;
+  parts_json: string | null;
+  response_messages_json: string | null;
   status: MessageStatus;
   provider_id: ProviderId | null;
   model_id: string | null;
@@ -53,6 +59,8 @@ type CreateMessageInput = {
   role: MessageRole;
   content: string;
   reasoning?: string | null;
+  parts?: ChatMessagePart[] | null;
+  responseMessages?: ModelMessage[] | null;
   status: MessageStatus;
   providerId: ProviderId | null;
   modelId: string | null;
@@ -75,13 +83,28 @@ function formatConversationTitle(timestamp: Date) {
   return `Session · ${formatter.format(timestamp)}`;
 }
 
+function parseJson<T>(value: string | null): T | null {
+  if (!value) {
+    return null;
+  }
+
+  return JSON.parse(value) as T;
+}
+
 function mapMessage(row: MessageRow): ChatMessage {
+  const parts = parseJson<ChatMessagePart[]>(row.parts_json) ?? buildFallbackMessageParts({
+          content: row.content,
+          reasoning: row.reasoning,
+          role: row.role
+        });
+
   return {
     id: row.id,
     conversationId: row.conversation_id,
     role: row.role,
     content: row.content,
     reasoning: row.reasoning,
+    parts,
     status: row.status,
     providerId: row.provider_id,
     modelId: row.model_id,
@@ -207,6 +230,8 @@ export class ConversationsRepo {
             role,
             content,
             reasoning,
+            parts_json,
+            response_messages_json,
             status,
             provider_id,
             model_id,
@@ -235,6 +260,40 @@ export class ConversationsRepo {
       },
       messages
     };
+  }
+
+  getModelHistory(conversationId: string) {
+    const rows = this.db
+      .prepare<{ conversationId: string }, Pick<MessageRow, 'role' | 'content' | 'response_messages_json'>>(
+        `
+          SELECT
+            role,
+            content,
+            response_messages_json
+          FROM messages
+          WHERE conversation_id = @conversationId
+          ORDER BY created_at ASC
+        `
+      )
+      .all({ conversationId });
+
+    const history: ModelMessage[] = [];
+
+    for (const row of rows) {
+      const responseMessages = parseJson<ModelMessage[]>(row.response_messages_json);
+
+      if (row.role === 'assistant' && responseMessages?.length) {
+        history.push(...responseMessages);
+        continue;
+      }
+
+      history.push({
+        role: row.role,
+        content: row.content
+      });
+    }
+
+    return history;
   }
 
   setDefaults(conversationId: string, providerId: ProviderId, modelId: string) {
@@ -270,6 +329,8 @@ export class ConversationsRepo {
               role,
               content,
               reasoning,
+              parts_json,
+              response_messages_json,
               status,
               provider_id,
               model_id,
@@ -286,6 +347,8 @@ export class ConversationsRepo {
               @role,
               @content,
               @reasoning,
+              @partsJson,
+              @responseMessagesJson,
               @status,
               @providerId,
               @modelId,
@@ -302,8 +365,10 @@ export class ConversationsRepo {
           id: messageId,
           conversationId: input.conversationId,
           role: input.role,
-          content: input.content,
-          reasoning: input.reasoning ?? null,
+          content: input.parts ? getTextContentFromParts(input.parts) || input.content : input.content,
+          reasoning: input.parts ? getReasoningContentFromParts(input.parts) ?? input.reasoning ?? null : input.reasoning ?? null,
+          partsJson: input.parts ? JSON.stringify(input.parts) : null,
+          responseMessagesJson: input.responseMessages ? JSON.stringify(input.responseMessages) : null,
           status: input.status,
           providerId: input.providerId,
           modelId: input.modelId,
