@@ -1,6 +1,6 @@
 {
   "name": "cheapchat",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": false,
   "author": "Olloyor",
   "description": "OpenRouter-first BYOK desktop chat client for free-tier model discovery and streaming.",
