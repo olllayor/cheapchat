@@ -35,11 +35,13 @@ type MessageRow = {
   conversation_id: string;
   role: MessageRole;
   content: string;
+  reasoning: string | null;
   status: MessageStatus;
   provider_id: ProviderId | null;
   model_id: string | null;
   input_tokens: number | null;
   output_tokens: number | null;
+  reasoning_tokens: number | null;
   latency_ms: number | null;
   error_code: string | null;
   created_at: string;
@@ -50,11 +52,13 @@ type CreateMessageInput = {
   conversationId: string;
   role: MessageRole;
   content: string;
+  reasoning?: string | null;
   status: MessageStatus;
   providerId: ProviderId | null;
   modelId: string | null;
   inputTokens?: number | null;
   outputTokens?: number | null;
+  reasoningTokens?: number | null;
   latencyMs?: number | null;
   errorCode?: string | null;
   createdAt?: string;
@@ -77,11 +81,13 @@ function mapMessage(row: MessageRow): ChatMessage {
     conversationId: row.conversation_id,
     role: row.role,
     content: row.content,
+    reasoning: row.reasoning,
     status: row.status,
     providerId: row.provider_id,
     modelId: row.model_id,
     inputTokens: row.input_tokens,
     outputTokens: row.output_tokens,
+    reasoningTokens: row.reasoning_tokens,
     latencyMs: row.latency_ms,
     errorCode: row.error_code,
     createdAt: row.created_at
@@ -200,11 +206,13 @@ export class ConversationsRepo {
             conversation_id,
             role,
             content,
+            reasoning,
             status,
             provider_id,
             model_id,
             input_tokens,
             output_tokens,
+            reasoning_tokens,
             latency_ms,
             error_code,
             created_at
@@ -261,11 +269,13 @@ export class ConversationsRepo {
               conversation_id,
               role,
               content,
+              reasoning,
               status,
               provider_id,
               model_id,
               input_tokens,
               output_tokens,
+              reasoning_tokens,
               latency_ms,
               error_code,
               created_at
@@ -275,11 +285,13 @@ export class ConversationsRepo {
               @conversationId,
               @role,
               @content,
+              @reasoning,
               @status,
               @providerId,
               @modelId,
               @inputTokens,
               @outputTokens,
+              @reasoningTokens,
               @latencyMs,
               @errorCode,
               @createdAt
@@ -291,11 +303,13 @@ export class ConversationsRepo {
           conversationId: input.conversationId,
           role: input.role,
           content: input.content,
+          reasoning: input.reasoning ?? null,
           status: input.status,
           providerId: input.providerId,
           modelId: input.modelId,
           inputTokens: input.inputTokens ?? null,
           outputTokens: input.outputTokens ?? null,
+          reasoningTokens: input.reasoningTokens ?? null,
           latencyMs: input.latencyMs ?? null,
           errorCode: input.errorCode ?? null,
           createdAt: timestamp

@@ -90,7 +90,7 @@ export function Composer({
     const latestUsageMessage = detail?.messages
       .slice()
       .reverse()
-      .find((message) => message.inputTokens || message.outputTokens);
+      .find((message) => message.inputTokens || message.outputTokens || message.reasoningTokens);
 
     const processedFromMessages =
       detail?.messages.reduce(
@@ -107,6 +107,10 @@ export function Composer({
         draft?.inputTokens ?? latestUsageMessage?.inputTokens ?? fallbackConversationInput
       ) + pendingInput;
     const outputTokens = Math.max(0, draft?.outputTokens ?? latestUsageMessage?.outputTokens ?? 0);
+    const reasoningTokens = Math.max(
+      0,
+      draft?.reasoningTokens ?? latestUsageMessage?.reasoningTokens ?? 0
+    );
 
     const parts = selectedModel.id.split('/');
     const tokenLensModelId =
@@ -119,6 +123,7 @@ export function Composer({
       usage: {
         inputTokens,
         outputTokens,
+        reasoningTokens,
       },
       usedTokens: inputTokens + outputTokens,
     };

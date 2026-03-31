@@ -8,12 +8,15 @@ export type ProviderStreamRequest = {
   maxOutputTokens?: number;
   signal: AbortSignal;
   onChunk: (delta: string) => void;
+  onReasoningChunk?: (delta: string) => void;
 };
 
 export type ProviderStreamResult = {
   content: string;
+  reasoning?: string;
   inputTokens?: number;
   outputTokens?: number;
+  reasoningTokens?: number;
   latencyMs: number;
 };
 

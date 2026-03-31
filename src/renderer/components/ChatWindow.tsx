@@ -22,6 +22,11 @@ import {
   ConversationScrollButton,
 } from './ai-elements/conversation';
 import { MessageResponse } from './ai-elements/message';
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from './ai-elements/reasoning';
 import { useClipboard } from '../hooks/useClipboard';
 
 type ChatWindowProps = {
@@ -76,9 +81,36 @@ function MessageMeta({
   );
 }
 
+function ReasoningRow({
+  reasoning,
+  isStreaming = false,
+  latencyMs,
+}: {
+  reasoning?: string | null;
+  isStreaming?: boolean;
+  latencyMs?: number | null;
+}) {
+  if (!reasoning?.trim()) {
+    return null;
+  }
+
+  return (
+    <Reasoning
+      className="mb-3"
+      defaultOpen={false}
+      duration={latencyMs ? Math.max(1, Math.round(latencyMs / 1000)) : undefined}
+      isStreaming={isStreaming}
+    >
+      <ReasoningTrigger />
+      <ReasoningContent>{reasoning}</ReasoningContent>
+    </Reasoning>
+  );
+}
+
 function MessageRow({
   role,
   content,
+  reasoning,
   latencyMs,
   modelLabel,
   isLast,
@@ -86,6 +118,7 @@ function MessageRow({
 }: {
   role: 'user' | 'assistant' | 'system';
   content: string;
+  reasoning?: string | null;
   latencyMs?: number | null;
   modelLabel?: string | null;
   isLast: boolean;
@@ -121,9 +154,13 @@ function MessageRow({
   return (
     <div className="group flex w-full">
       <div className="min-w-0 max-w-[min(100%,84ch)] flex-1">
-        <MessageResponse className="text-[15.5px] leading-[1.85] tracking-[-0.01em] text-text-primary">
-          {content}
-        </MessageResponse>
+        <ReasoningRow latencyMs={latencyMs} reasoning={reasoning} />
+
+        {content.trim() ? (
+          <MessageResponse className="text-[15.5px] leading-[1.85] tracking-[-0.01em] text-text-primary">
+            {content}
+          </MessageResponse>
+        ) : null}
 
         <MessageMeta latencyMs={latencyMs} modelLabel={modelLabel} />
 
@@ -154,11 +191,13 @@ function MessageRow({
 
 function StreamingRow({
   content,
+  reasoning,
   modelLabel,
   errorMessage,
   status,
 }: {
   content: string;
+  reasoning?: string;
   modelLabel?: string;
   errorMessage?: string;
   status: 'streaming' | 'error' | 'aborted';
@@ -169,6 +208,8 @@ function StreamingRow({
   return (
     <div className="group flex w-full">
       <div className="min-w-0 max-w-[min(100%,84ch)] flex-1">
+        <ReasoningRow isStreaming={status === 'streaming'} reasoning={reasoning} />
+
         {isError ? (
           <div className="rounded-2xl border border-error-border bg-error-bg p-4">
             <div className="flex items-start gap-3">
@@ -186,12 +227,21 @@ function StreamingRow({
               <p className="text-sm text-text-muted">Generation stopped</p>
             </div>
           </div>
-        ) : (
+        ) : content ? (
           <>
             <MessageResponse className="text-[15.5px] leading-[1.85] tracking-[-0.01em] text-text-primary" isAnimating={status === 'streaming'}>
-              {content || '_Thinking..._'}
+              {content}
             </MessageResponse>
 
+            <MessageMeta modelLabel={modelLabel} status={status} />
+          </>
+        ) : reasoning?.trim() ? (
+          <MessageMeta modelLabel={modelLabel} status={status} />
+        ) : (
+          <>
+            <div className="text-[13.5px] font-medium text-text-muted">
+              Thinking...
+            </div>
             <MessageMeta modelLabel={modelLabel} status={status} />
           </>
         )}
@@ -268,6 +318,7 @@ export function ChatWindow({ detail, draft, hasCredential, onOpenSettings, onSug
                 key={message.id}
                 role={message.role}
                 content={message.content}
+                reasoning={message.reasoning}
                 latencyMs={message.status === 'complete' ? message.latencyMs : null}
                 modelLabel={message.role === 'assistant' ? message.modelId : undefined}
                 isLast={isLast}
@@ -278,6 +329,7 @@ export function ChatWindow({ detail, draft, hasCredential, onOpenSettings, onSug
           {draft && (
             <StreamingRow
               content={draft.content}
+              reasoning={draft.reasoning}
               modelLabel={draft.modelId}
               errorMessage={draft.errorMessage}
               status={draft.status}

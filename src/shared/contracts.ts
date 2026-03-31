@@ -56,11 +56,13 @@ export type ChatMessage = {
   conversationId: string;
   role: MessageRole;
   content: string;
+  reasoning: string | null;
   status: MessageStatus;
   providerId: ProviderId | null;
   modelId: string | null;
   inputTokens: number | null;
   outputTokens: number | null;
+  reasoningTokens: number | null;
   latencyMs: number | null;
   errorCode: string | null;
   createdAt: string;
@@ -102,11 +104,18 @@ export type StreamChunkEvent = {
   delta: string;
 };
 
+export type StreamReasoningEvent = {
+  type: 'reasoning';
+  requestId: string;
+  delta: string;
+};
+
 export type StreamMetaEvent = {
   type: 'meta';
   requestId: string;
   inputTokens?: number;
   outputTokens?: number;
+  reasoningTokens?: number;
   latencyMs?: number;
 };
 
@@ -126,6 +135,7 @@ export type StreamDoneEvent = {
 
 export type StreamEvent =
   | StreamChunkEvent
+  | StreamReasoningEvent
   | StreamMetaEvent
   | StreamErrorEvent
   | StreamDoneEvent;

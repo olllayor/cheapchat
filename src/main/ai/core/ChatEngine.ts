@@ -73,11 +73,13 @@ export class ChatEngine {
         conversationId: request.conversationId,
         role: 'assistant',
         content: result.content,
+        reasoning: result.reasoning ?? null,
         status: 'complete',
         providerId: request.providerId,
         modelId: request.modelId,
         inputTokens: result.inputTokens ?? null,
         outputTokens: result.outputTokens ?? null,
+        reasoningTokens: result.reasoningTokens ?? null,
         latencyMs: result.latencyMs ?? null
       });
 
@@ -86,6 +88,7 @@ export class ChatEngine {
         requestId,
         inputTokens: result.inputTokens,
         outputTokens: result.outputTokens,
+        reasoningTokens: result.reasoningTokens,
         latencyMs: result.latencyMs
       });
 
@@ -115,7 +118,7 @@ export class ChatEngine {
     signal: AbortSignal
   ): Promise<ProviderStreamResult> {
     let attempt = 0;
-    let streamedAnyContent = false;
+    let streamedAnyResponse = false;
 
     while (true) {
       try {
@@ -132,9 +135,17 @@ export class ChatEngine {
           maxOutputTokens: request.maxOutputTokens,
           signal,
           onChunk: (delta) => {
-            streamedAnyContent = true;
+            streamedAnyResponse = true;
             this.sendEvent(active.window, {
               type: 'chunk',
+              requestId,
+              delta
+            });
+          },
+          onReasoningChunk: (delta) => {
+            streamedAnyResponse = true;
+            this.sendEvent(active.window, {
+              type: 'reasoning',
               requestId,
               delta
             });
@@ -142,7 +153,7 @@ export class ChatEngine {
         });
       } catch (error) {
         const normalized = normalizeError(error);
-        const canRetry = attempt === 0 && normalized.retryable && !streamedAnyContent && !signal.aborted;
+        const canRetry = attempt === 0 && normalized.retryable && !streamedAnyResponse && !signal.aborted;
 
         if (!canRetry) {
           throw error;

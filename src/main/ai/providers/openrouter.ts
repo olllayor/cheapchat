@@ -130,6 +130,7 @@ export class OpenRouterProvider implements ProviderAdapter {
 
     let inputTokens: number | undefined;
     let outputTokens: number | undefined;
+    let reasoningTokens: number | undefined;
     let streamError: unknown;
 
     try {
@@ -150,11 +151,21 @@ export class OpenRouterProvider implements ProviderAdapter {
 
           if (chunk.type === 'text-delta') {
             request.onChunk(chunk.text);
+            return;
+          }
+
+          if (chunk.type === 'reasoning-delta') {
+            request.onReasoningChunk?.(chunk.text);
           }
         },
         onFinish: ({ usage }) => {
+          if (!usage) {
+            return;
+          }
+
           inputTokens = usage.inputTokens;
           outputTokens = usage.outputTokens;
+          reasoningTokens = usage.outputTokenDetails.reasoningTokens ?? usage.reasoningTokens;
         },
         onError: ({ error }) => {
           streamError = error;
@@ -178,8 +189,10 @@ export class OpenRouterProvider implements ProviderAdapter {
 
       return {
         content: await result.text,
+        reasoning: await result.reasoningText,
         inputTokens,
         outputTokens,
+        reasoningTokens,
         latencyMs: Date.now() - startedAt
       };
     } catch (error) {

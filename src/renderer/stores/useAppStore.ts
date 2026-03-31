@@ -15,10 +15,12 @@ type DraftState = {
   providerId: ProviderId;
   modelId: string;
   content: string;
+  reasoning: string;
   status: 'streaming' | 'error' | 'aborted';
   errorMessage?: string;
   inputTokens?: number;
   outputTokens?: number;
+  reasoningTokens?: number;
   latencyMs?: number;
   startedAt: string;
 };
@@ -415,11 +417,13 @@ export const useAppStore = create<AppState>((set, get) => ({
               conversationId,
               role: 'user' as const,
               content: trimmed,
+              reasoning: null,
               status: 'complete' as const,
               providerId: 'openrouter' as const,
               modelId,
               inputTokens: null,
               outputTokens: null,
+              reasoningTokens: null,
               latencyMs: null,
               errorCode: null,
               createdAt: now
@@ -434,6 +438,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           providerId: 'openrouter' as const,
           modelId,
           content: '',
+          reasoning: '',
           status: 'streaming' as const,
           startedAt: now
         }
@@ -495,6 +500,26 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
 
+    if (event.type === 'reasoning') {
+      set((state) => {
+        const draft = state.draftsByConversation[conversationId];
+        if (!draft) {
+          return state;
+        }
+
+        return {
+          draftsByConversation: {
+            ...state.draftsByConversation,
+            [conversationId]: {
+              ...draft,
+              reasoning: `${draft.reasoning}${event.delta}`
+            }
+          }
+        };
+      });
+      return;
+    }
+
     if (event.type === 'meta') {
       set((state) => {
         const draft = state.draftsByConversation[conversationId];
@@ -509,6 +534,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               ...draft,
               inputTokens: event.inputTokens,
               outputTokens: event.outputTokens,
+              reasoningTokens: event.reasoningTokens,
               latencyMs: event.latencyMs
             }
           }
