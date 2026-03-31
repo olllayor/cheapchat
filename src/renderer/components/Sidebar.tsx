@@ -26,18 +26,23 @@ export function Sidebar({
 
   return (
     <aside
-      className={`flex flex-col border-r border-white/8 bg-[#0a0c10] transition-all duration-200 ${
+      className={`flex flex-col border-r border-border-subtle bg-bg-panel transition-all ${
         collapsed ? 'w-[60px]' : 'w-[260px]'
       }`}
+      style={{ transitionDuration: 'var(--duration-normal)' }}
     >
-      <div className="flex items-center justify-between border-b border-white/8 px-3 py-4">
+      <div 
+        className="flex items-center justify-between border-b border-border-subtle px-3 py-4"
+        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      >
         {!collapsed && (
-          <h1 className="text-base font-semibold text-white">CheapChat</h1>
+          <h1 className="text-base font-semibold text-text-primary" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>CheapChat</h1>
         )}
         <button
           type="button"
           onClick={onToggleCollapsed}
-          className="rounded-lg p-1.5 text-slate-500 transition hover:bg-white/10 hover:text-white"
+          className="rounded-lg p-1.5 text-text-muted transition hover:bg-bg-hover hover:text-text-primary"
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
@@ -47,7 +52,7 @@ export function Sidebar({
         <button
           type="button"
           onClick={onCreate}
-          className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white ${
+          className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-text-secondary transition hover:bg-bg-hover hover:text-text-primary ${
             collapsed ? 'justify-center' : ''
           }`}
         >
@@ -69,11 +74,11 @@ export function Sidebar({
                 onMouseLeave={() => setHoveredId(null)}
                 className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left transition ${
                   isActive
-                    ? 'bg-white/10 text-white'
-                    : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                    ? 'bg-bg-active text-text-primary'
+                    : 'text-text-tertiary hover:bg-bg-hover hover:text-text-secondary'
                 } ${collapsed ? 'justify-center' : ''}`}
               >
-                <MessageSquare className={`h-4 w-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-600'}`} />
+                <MessageSquare className={`h-4 w-4 shrink-0 ${isActive ? 'text-text-primary' : 'text-text-faint'}`} />
                 {!collapsed && (
                   <div className="min-w-0">
                     <p className="truncate text-sm">{conv.title}</p>
@@ -85,11 +90,11 @@ export function Sidebar({
         </div>
       </div>
 
-      <div className="border-t border-white/8 px-2 py-3">
+      <div className="border-t border-border-subtle px-2 py-3">
         <button
           type="button"
           onClick={onOpenSettings}
-          className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-slate-400 transition hover:bg-white/5 hover:text-white ${
+          className={`flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-text-tertiary transition hover:bg-bg-hover hover:text-text-primary ${
             collapsed ? 'justify-center' : ''
           }`}
         >
