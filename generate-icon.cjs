@@ -42,19 +42,19 @@ function readPngDimensions(filePath) {
   }
 }
 
-function assertImageMagick() {
+function assertSips() {
   try {
-    execFileSync('magick', ['-version'], { stdio: 'ignore' });
+    execFileSync('sips', ['-g', 'all', '--help'], { stdio: 'ignore' });
   } catch {
-    throw new Error('ImageMagick is required. Install `magick` and rerun `node generate-icon.cjs`.');
+    throw new Error('sips is required. This script requires macOS. Install Xcode Command Line Tools and rerun `node generate-icon.cjs`.');
   }
 }
 
 function resizePng(sourcePath, size, outputPath) {
   execFileSync(
-    'magick',
-    [sourcePath, '-filter', 'Lanczos', '-resize', `${size}x${size}`, '-background', 'none', '-alpha', 'on', `PNG32:${outputPath}`],
-    { stdio: 'inherit' }
+    'sips',
+    ['-z', String(size), String(size), sourcePath, '--out', outputPath],
+    { stdio: 'ignore' }
   );
 }
 
@@ -63,7 +63,7 @@ function main() {
     throw new Error(`Source icon not found: ${SOURCE_ICON}`);
   }
 
-  assertImageMagick();
+  assertSips();
 
   const { width, height } = readPngDimensions(SOURCE_ICON);
   if (width !== height) {
