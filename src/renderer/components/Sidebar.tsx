@@ -31,17 +31,26 @@ export function Sidebar({
       }`}
       style={{ transitionDuration: 'var(--duration-normal)' }}
     >
+      {/* macOS title bar area - traffic lights + centered app name */}
       <div 
-        className="flex items-center justify-between border-b border-border-subtle px-3 py-4"
+        className="flex h-[52px] items-center border-b border-border-subtle"
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       >
+        {/* Spacer for traffic lights */}
+        <div className="w-[78px] shrink-0" />
+        
+        {/* Centered app name */}
         {!collapsed && (
-          <h1 className="text-base font-semibold text-text-primary" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>CheapChat</h1>
+          <h1 className="flex-1 text-center text-sm font-semibold text-text-primary">
+            CheapChat
+          </h1>
         )}
+        
+        {/* Collapse button */}
         <button
           type="button"
           onClick={onToggleCollapsed}
-          className="rounded-lg p-1.5 text-text-muted transition hover:bg-bg-hover hover:text-text-primary"
+          className="mr-2 rounded-lg p-1.5 text-text-muted transition hover:bg-bg-hover hover:text-text-primary"
           style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}

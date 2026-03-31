@@ -164,6 +164,12 @@ export default function App() {
       />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Draggable title bar area for main content - matches sidebar height */}
+        <div 
+          className="h-[52px] shrink-0 border-b border-border-subtle"
+          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+        />
+        
         {notice && (
           <div
             className={`flex items-center justify-between border-b px-4 py-2 text-sm ${
@@ -173,6 +179,7 @@ export default function App() {
                   ? 'border-success-border bg-success-bg text-success-text'
                   : 'border-warning-border bg-warning-bg text-warning-text'
             }`}
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           >
             <span>{notice.message}</span>
             <button onClick={dismissNotice} className="ml-3 text-text-muted hover:text-text-primary">
