@@ -20,3 +20,5 @@ plan.md
 npx
 skills-lock.json
 skills/
+.kilo/
+.worktrees/
