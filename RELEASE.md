@@ -15,6 +15,7 @@ The release workflow triggers on tags matching `v*.*.*` such as `v0.1.4` or `v0.
 - [ ] All PRs for this release are merged to `dev`
 - [ ] `dev` → `main` PR is merged
 - [ ] `pnpm build` passes locally on `main`
+- [ ] If branding changed, replace the root `icon.png` source and run `pnpm icons:mac` to refresh `build/icon.png`
 - [ ] CI is green on `main` branch
 - [ ] CHANGELOG.md is updated with all changes since last release
 - [ ] No unresolved security issues

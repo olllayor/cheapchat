@@ -15,7 +15,7 @@ export function createWindow() {
     autoHideMenuBar: true,
     backgroundColor: '#060709',
     titleBarStyle: 'hiddenInset',
-    ...(icon ? { icon } : {}),
+    ...(icon && process.platform !== 'darwin' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       contextIsolation: true,
