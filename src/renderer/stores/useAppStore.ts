@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 import type {
+  AppUpdateSnapshot,
   ChatMessagePart,
   ConversationDetail,
   ConversationSummary,
@@ -53,6 +54,7 @@ type AppState = {
   draftsByConversation: Record<string, DraftState | undefined>;
   requestToConversation: Record<string, string>;
   notice: Notice | null;
+  updateState: AppUpdateSnapshot;
   bootstrap: () => Promise<void>;
   refreshModels: (options?: RefreshModelsOptions) => Promise<void>;
   refreshConversationList: () => Promise<void>;
@@ -64,6 +66,9 @@ type AppState = {
   saveOpenRouterKey: () => Promise<void>;
   validateOpenRouterKey: () => Promise<void>;
   updatePreferences: (patch: { showFreeOnlyByDefault?: boolean }) => Promise<void>;
+  setUpdateState: (snapshot: AppUpdateSnapshot) => void;
+  checkForUpdates: (options?: { manual?: boolean }) => Promise<void>;
+  performUpdatePrimaryAction: () => Promise<void>;
   setSelectedModel: (conversationId: string, modelId: string) => void;
   sendMessage: (content: string) => Promise<void>;
   abortConversation: (conversationId: string) => Promise<void>;
@@ -128,6 +133,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   draftsByConversation: {},
   requestToConversation: {},
   notice: null,
+  updateState: { status: 'idle' },
 
   bootstrap: async () => {
     set({
@@ -145,13 +151,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       const selectedConversationId = conversations[0]?.id ?? null;
-      const [detail, models] = await Promise.all([
+      const [detail, models, updateState] = await Promise.all([
         selectedConversationId ? window.cheapChat.conversations.get(selectedConversationId) : Promise.resolve(null),
         window.cheapChat.models.list({
           freeOnly: settings.showFreeOnlyByDefault,
           includeArchived: false,
           allowStale: true
-        })
+        }),
+        window.cheapChat.updates.getState()
       ]);
 
       const defaultModelId = chooseDefaultModel(models);
@@ -164,6 +171,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         conversations,
         selectedConversationId,
         conversationDetails: detail && selectedConversationId ? { [selectedConversationId]: detail } : {},
+        updateState,
         selectedModelIdByConversation:
           defaultModelId && selectedConversationId
             ? { [selectedConversationId]: detail?.conversation.defaultModelId ?? defaultModelId }
@@ -339,6 +347,45 @@ export const useAppStore = create<AppState>((set, get) => ({
             }
           : state.selectedModelIdByConversation
     }));
+  },
+
+  setUpdateState: (snapshot) => set({ updateState: snapshot }),
+
+  checkForUpdates: async ({ manual } = {}) => {
+    try {
+      const snapshot = await window.cheapChat.updates.check();
+
+      set({
+        updateState: snapshot,
+        notice:
+          !manual
+            ? null
+            : snapshot.status === 'error'
+              ? {
+                  tone: 'error',
+                  message: snapshot.message
+                }
+              : snapshot.status === 'not-available'
+                ? {
+                    tone: 'info',
+                    message: `CheapChat ${snapshot.currentVersion} is up to date.`
+                  }
+                : null
+      });
+    } catch (error) {
+      set({
+        notice: manual
+          ? {
+              tone: 'error',
+              message: getErrorMessage(error)
+            }
+          : null
+      });
+    }
+  },
+
+  performUpdatePrimaryAction: async () => {
+    await window.cheapChat.updates.performPrimaryAction();
   },
 
   setSelectedModel: (conversationId, modelId) => {
