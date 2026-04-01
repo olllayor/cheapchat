@@ -20,7 +20,8 @@ const api: RendererApi = {
   conversations: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.conversationsList),
     create: () => ipcRenderer.invoke(IPC_CHANNELS.conversationsCreate),
-    get: (conversationId) => ipcRenderer.invoke(IPC_CHANNELS.conversationsGet, conversationId)
+    get: (conversationId) => ipcRenderer.invoke(IPC_CHANNELS.conversationsGet, conversationId),
+    delete: (conversationId) => ipcRenderer.invoke(IPC_CHANNELS.conversationsDelete, conversationId)
   },
   chat: {
     start: (request) => ipcRenderer.invoke(IPC_CHANNELS.chatStart, request),

@@ -8,7 +8,9 @@ import type {
   ModelSummary,
   ProviderCredentialSummary,
   ProviderId,
+  SettingsSection,
   SettingsSummary,
+  SettingsUpdateRequest,
   StreamEvent
 } from '../../shared/contracts';
 import { applyStreamEventToParts } from '../../shared/messageParts';
@@ -36,11 +38,14 @@ type RefreshModelsOptions = {
   silent?: boolean;
 };
 
+type AppView = 'chat' | 'settings';
+
 type AppState = {
   bootstrapping: boolean;
   initialized: boolean;
   bootstrapError: string | null;
-  settingsDialogOpen: boolean;
+  activeView: AppView;
+  settingsSection: SettingsSection;
   keyDraft: string;
   isSavingKey: boolean;
   isValidatingKey: boolean;
@@ -60,18 +65,20 @@ type AppState = {
   refreshConversationList: () => Promise<void>;
   loadConversation: (conversationId: string) => Promise<void>;
   createConversation: () => Promise<void>;
-  openSettings: () => void;
+  openSettings: (section?: SettingsSection) => void;
   closeSettings: () => void;
+  setSettingsSection: (section: SettingsSection) => void;
   setKeyDraft: (value: string) => void;
   saveOpenRouterKey: () => Promise<void>;
   validateOpenRouterKey: () => Promise<void>;
-  updatePreferences: (patch: { showFreeOnlyByDefault?: boolean }) => Promise<void>;
+  updatePreferences: (patch: SettingsUpdateRequest) => Promise<void>;
   setUpdateState: (snapshot: AppUpdateSnapshot) => void;
   checkForUpdates: (options?: { manual?: boolean }) => Promise<void>;
   performUpdatePrimaryAction: () => Promise<void>;
   setSelectedModel: (conversationId: string, modelId: string) => void;
   sendMessage: (content: string) => Promise<void>;
   abortConversation: (conversationId: string) => Promise<void>;
+  deleteConversation: (conversationId: string) => Promise<void>;
   handleStreamEvent: (event: StreamEvent) => Promise<void>;
   dismissNotice: () => void;
 };
@@ -119,7 +126,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   bootstrapping: true,
   initialized: false,
   bootstrapError: null,
-  settingsDialogOpen: false,
+  activeView: 'chat',
+  settingsSection: 'general',
   keyDraft: '',
   isSavingKey: false,
   isValidatingKey: false,
@@ -240,9 +248,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   loadConversation: async (conversationId) => {
-    const detail = await window.atlasChat.conversations.get(conversationId);
+    const cachedDetail = get().conversationDetails[conversationId];
+
     set((state) => ({
       selectedConversationId: conversationId,
+      selectedModelIdByConversation:
+        cachedDetail?.conversation.defaultModelId && !state.selectedModelIdByConversation[conversationId]
+          ? {
+              ...state.selectedModelIdByConversation,
+              [conversationId]: cachedDetail.conversation.defaultModelId
+            }
+          : state.selectedModelIdByConversation
+    }));
+
+    const detail = await window.atlasChat.conversations.get(conversationId);
+    set((state) => ({
       conversationDetails: {
         ...state.conversationDetails,
         [conversationId]: detail
@@ -263,8 +283,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().loadConversation(created.id);
   },
 
-  openSettings: () => set({ settingsDialogOpen: true }),
-  closeSettings: () => set({ settingsDialogOpen: false }),
+  openSettings: (section = 'general') => set({ activeView: 'settings', settingsSection: section }),
+  closeSettings: () => set({ activeView: 'chat' }),
+  setSettingsSection: (section) => set({ settingsSection: section }),
   setKeyDraft: (value) => set({ keyDraft: value }),
 
   saveOpenRouterKey: async () => {
@@ -330,6 +351,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   updatePreferences: async (patch) => {
     const settings = await window.atlasChat.settings.updatePreferences(patch);
+    if (typeof patch.showFreeOnlyByDefault !== 'boolean') {
+      set({ settings });
+      return;
+    }
+
     const models = await window.atlasChat.models.list({
       freeOnly: settings.showFreeOnlyByDefault,
       includeArchived: false,
@@ -527,6 +553,63 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
 
     await window.atlasChat.chat.abort(draft.requestId);
+  },
+
+  deleteConversation: async (conversationId) => {
+    const state = get();
+    const draft = state.draftsByConversation[conversationId];
+
+    if (draft?.status === 'streaming') {
+      await window.atlasChat.chat.abort(draft.requestId);
+    }
+
+    set((current) => {
+      const { [conversationId]: _deletedDetail, ...restDetails } = current.conversationDetails;
+      const { [conversationId]: _deletedDraft, ...restDrafts } = current.draftsByConversation;
+      const { [conversationId]: _deletedModel, ...restSelectedModels } = current.selectedModelIdByConversation;
+      const requestToConversation = Object.fromEntries(
+        Object.entries(current.requestToConversation).filter(([, mappedConversationId]) => mappedConversationId !== conversationId)
+      );
+      const conversations = current.conversations.filter((conversation) => conversation.id !== conversationId);
+      const nextSelectedConversationId =
+        current.selectedConversationId === conversationId
+          ? conversations[0]?.id ?? null
+          : current.selectedConversationId;
+
+      return {
+        conversations,
+        conversationDetails: restDetails,
+        draftsByConversation: restDrafts,
+        selectedModelIdByConversation: restSelectedModels,
+        requestToConversation,
+        selectedConversationId: nextSelectedConversationId
+      };
+    });
+
+    await window.atlasChat.conversations.delete(conversationId);
+
+    const conversations = await window.atlasChat.conversations.list();
+
+    if (conversations.length === 0) {
+      const createdConversation = await window.atlasChat.conversations.create();
+      await get().refreshConversationList();
+      await get().loadConversation(createdConversation.id);
+      return;
+    }
+
+    const nextSelectedConversationId = get().selectedConversationId;
+
+    set({ conversations });
+
+    if (nextSelectedConversationId && conversations.some((conversation) => conversation.id === nextSelectedConversationId)) {
+      const loadedDetail = get().conversationDetails[nextSelectedConversationId];
+      if (!loadedDetail) {
+        await get().loadConversation(nextSelectedConversationId);
+      }
+      return;
+    }
+
+    await get().loadConversation(conversations[0].id);
   },
 
   handleStreamEvent: async (event) => {

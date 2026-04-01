@@ -19,4 +19,9 @@ export function registerConversationsIpc(conversationsRepo: ConversationsRepo) {
     assertTrustedSender(event);
     return conversationsRepo.get(conversationId);
   });
+
+  ipcMain.handle(IPC_CHANNELS.conversationsDelete, (event, conversationId: string) => {
+    assertTrustedSender(event);
+    conversationsRepo.delete(conversationId);
+  });
 }

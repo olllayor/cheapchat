@@ -1,4 +1,4 @@
-import type { CredentialStatus, ProviderCredentialSummary, ProviderId } from '../../../shared/contracts';
+import type { CredentialStatus, ProviderCredentialSummary, ProviderId, ThemeMode } from '../../../shared/contracts';
 import type { SqliteDatabase } from '../client';
 
 const PROVIDERS: ProviderId[] = ['openrouter', 'openai', 'gemini'];
@@ -13,23 +13,23 @@ type ProviderCredentialRow = {
 export class SettingsRepo {
   constructor(private readonly db: SqliteDatabase) {}
 
-  getShowFreeOnlyByDefault() {
+  private getJsonSetting<T>(key: string, fallback: T) {
     const row = this.db
       .prepare<{ key: string }, { value: string }>('SELECT value FROM app_settings WHERE key = @key')
-      .get({ key: 'showFreeOnlyByDefault' });
+      .get({ key });
 
     if (!row) {
-      return true;
+      return fallback;
     }
 
     try {
-      return Boolean(JSON.parse(row.value));
+      return JSON.parse(row.value) as T;
     } catch {
-      return true;
+      return fallback;
     }
   }
 
-  setShowFreeOnlyByDefault(value: boolean) {
+  private setJsonSetting<T>(key: string, value: T) {
     this.db
       .prepare(
         `
@@ -39,9 +39,26 @@ export class SettingsRepo {
         `
       )
       .run({
-        key: 'showFreeOnlyByDefault',
+        key,
         value: JSON.stringify(value)
       });
+  }
+
+  getShowFreeOnlyByDefault() {
+    return Boolean(this.getJsonSetting('showFreeOnlyByDefault', true));
+  }
+
+  setShowFreeOnlyByDefault(value: boolean) {
+    this.setJsonSetting('showFreeOnlyByDefault', value);
+  }
+
+  getThemeMode(): ThemeMode {
+    const value = this.getJsonSetting<ThemeMode>('themeMode', 'dark');
+    return value === 'light' || value === 'dark' || value === 'system' ? value : 'dark';
+  }
+
+  setThemeMode(value: ThemeMode) {
+    this.setJsonSetting('themeMode', value);
   }
 
   syncSecretPresence(providerId: ProviderId, hasSecret: boolean) {

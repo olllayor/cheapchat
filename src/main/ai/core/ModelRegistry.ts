@@ -79,6 +79,9 @@ export class ModelRegistry {
 
     return {
       providers: credentials,
+      appearance: {
+        themeMode: this.settingsRepo.getThemeMode()
+      },
       showFreeOnlyByDefault: this.settingsRepo.getShowFreeOnlyByDefault(),
       modelCatalogLastSyncedAt: catalog.lastSyncedAt,
       modelCatalogStale: !catalog.lastSyncedAt || Date.now() - lastSyncedAt > staleThreshold,

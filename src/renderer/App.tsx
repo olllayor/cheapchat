@@ -1,11 +1,11 @@
 import { useEffect, useEffectEvent, useState } from 'react';
 
-import type { AppUpdateSnapshot, StreamEvent } from '../shared/contracts';
+import type { AppUpdateSnapshot, StreamEvent, ThemeMode } from '../shared/contracts';
 import { ChatWindow } from './components/ChatWindow';
 import { Composer } from './components/Composer';
 import { OnboardingFlow } from './components/OnboardingFlow';
 import { AppUpdateButton } from './components/AppUpdateButton';
-import { SettingsPanel } from './components/SettingsPanel';
+import { SettingsWorkspace } from './components/SettingsWorkspace';
 import { Sidebar } from './components/Sidebar';
 import { buildSidebarConversationItems } from './components/sidebarViewModel';
 import { useAppStore } from './stores/useAppStore';
@@ -42,6 +42,14 @@ function ErrorScreen({ message, onRetry }: { message: string; onRetry: () => voi
   );
 }
 
+function resolveThemeMode(mode: ThemeMode, prefersDark: boolean) {
+  if (mode === 'system') {
+    return prefersDark ? 'dark' : 'light';
+  }
+
+  return mode;
+}
+
 export default function App() {
   const [composerValue, setComposerValue] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -52,7 +60,8 @@ export default function App() {
     bootstrapping,
     initialized,
     bootstrapError,
-    settingsDialogOpen,
+    activeView,
+    settingsSection,
     keyDraft,
     isSavingKey,
     isValidatingKey,
@@ -72,15 +81,18 @@ export default function App() {
     createConversation,
     openSettings,
     closeSettings,
+    setSettingsSection,
     setKeyDraft,
     saveOpenRouterKey,
     validateOpenRouterKey,
+    updatePreferences,
     setUpdateState,
     checkForUpdates,
     performUpdatePrimaryAction,
     setSelectedModel,
     sendMessage,
     abortConversation,
+    deleteConversation,
     handleStreamEvent,
     dismissNotice,
   } = useAppStore();
@@ -90,6 +102,7 @@ export default function App() {
   const selectedModelId = selectedConversationId ? selectedModelIdByConversation[selectedConversationId] ?? null : null;
   const openRouterCredential = settings?.providers.find((p) => p.providerId === 'openrouter') ?? null;
   const hasCredential = Boolean(openRouterCredential?.hasSecret);
+  const themeMode = settings?.appearance.themeMode ?? 'dark';
   const sidebarItems = buildSidebarConversationItems({
     conversations,
     conversationDetails,
@@ -136,43 +149,75 @@ export default function App() {
     }
   }, [onboardingDone, hasCredential, refreshModels]);
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const applyTheme = () => {
+      const resolved = resolveThemeMode(themeMode, mediaQuery.matches);
+      document.documentElement.dataset.theme = resolved;
+      document.documentElement.style.colorScheme = resolved;
+    };
+
+    applyTheme();
+    mediaQuery.addEventListener('change', applyTheme);
+
+    return () => {
+      mediaQuery.removeEventListener('change', applyTheme);
+    };
+  }, [themeMode]);
+
   if (bootstrapping) return <LoadingScreen />;
   if (!initialized || bootstrapError) {
     return <ErrorScreen message={bootstrapError ?? 'Unknown error'} onRetry={() => void bootstrap()} />;
   }
 
+  if (activeView === 'settings') {
+    return (
+      <SettingsWorkspace
+        settings={settings}
+        updateState={updateState}
+        conversationDetails={conversationDetails}
+        notice={notice}
+        keyDraft={keyDraft}
+        isSaving={isSavingKey}
+        isValidating={isValidatingKey}
+        isRefreshingModels={isRefreshingModels}
+        activeSection={settingsSection}
+        onBack={closeSettings}
+        onNavigate={setSettingsSection}
+        onDismissNotice={dismissNotice}
+        onKeyDraftChange={setKeyDraft}
+        onSaveKey={() => void saveOpenRouterKey()}
+        onValidateKey={() => void validateOpenRouterKey()}
+        onThemeModeChange={(mode) => void updatePreferences({ appearance: { themeMode: mode } })}
+        onToggleFreeModels={(value) => void updatePreferences({ showFreeOnlyByDefault: value })}
+        onUpdateAction={() => {
+          if (updateState.status === 'available' || updateState.status === 'downloaded') {
+            void performUpdatePrimaryAction();
+            return;
+          }
+
+          void checkForUpdates({ manual: true });
+        }}
+        onRefreshModels={() => void refreshModels()}
+      />
+    );
+  }
+
   if (showOnboarding && !hasCredential) {
     return (
-      <>
-        <OnboardingFlow
-          hasCredential={hasCredential}
-          isSavingKey={isSavingKey}
-          isValidatingKey={isValidatingKey}
-          keyDraft={keyDraft}
-          onKeyDraftChange={setKeyDraft}
-          onSaveKey={() => void saveOpenRouterKey()}
-          onValidateKey={() => void validateOpenRouterKey()}
-          onContinue={() => {
-            setShowOnboarding(false);
-            setOnboardingDone(true);
-          }}
-        />
-        <SettingsPanel
-          open={settingsDialogOpen}
-          settings={settings}
-          updateState={updateState}
-          keyDraft={keyDraft}
-          isSaving={isSavingKey}
-          isValidating={isValidatingKey}
-          isRefreshingModels={isRefreshingModels}
-          onClose={closeSettings}
-          onKeyDraftChange={setKeyDraft}
-          onSaveKey={() => void saveOpenRouterKey()}
-          onValidateKey={() => void validateOpenRouterKey()}
-          onCheckForUpdates={() => void checkForUpdates({ manual: true })}
-          onRefreshModels={() => void refreshModels()}
-        />
-      </>
+      <OnboardingFlow
+        hasCredential={hasCredential}
+        isSavingKey={isSavingKey}
+        isValidatingKey={isValidatingKey}
+        keyDraft={keyDraft}
+        onKeyDraftChange={setKeyDraft}
+        onSaveKey={() => void saveOpenRouterKey()}
+        onValidateKey={() => void validateOpenRouterKey()}
+        onContinue={() => {
+          setShowOnboarding(false);
+          setOnboardingDone(true);
+        }}
+      />
     );
   }
 
@@ -182,9 +227,16 @@ export default function App() {
         items={sidebarItems}
         selectedConversationId={selectedConversationId}
         collapsed={sidebarCollapsed}
+        settings={settings}
+        updateState={updateState}
+        isRefreshingModels={isRefreshingModels}
+        conversationDetails={conversationDetails}
         onSelect={(id) => void loadConversation(id)}
         onCreate={() => void createConversation()}
+        onDelete={(id) => void deleteConversation(id)}
         onOpenSettings={openSettings}
+        onRefreshModels={() => void refreshModels()}
+        onCheckForUpdates={() => void checkForUpdates({ manual: true })}
         onToggleCollapsed={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
 
@@ -249,22 +301,6 @@ export default function App() {
           isRefreshingModels={isRefreshingModels}
         />
       </div>
-
-      <SettingsPanel
-        open={settingsDialogOpen}
-        settings={settings}
-        updateState={updateState}
-        keyDraft={keyDraft}
-        isSaving={isSavingKey}
-        isValidating={isValidatingKey}
-        isRefreshingModels={isRefreshingModels}
-        onClose={closeSettings}
-        onKeyDraftChange={setKeyDraft}
-        onSaveKey={() => void saveOpenRouterKey()}
-        onValidateKey={() => void validateOpenRouterKey()}
-        onCheckForUpdates={() => void checkForUpdates({ manual: true })}
-        onRefreshModels={() => void refreshModels()}
-      />
     </div>
   );
 }

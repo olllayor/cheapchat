@@ -82,8 +82,17 @@ export type ProviderCredentialSummary = {
   validatedAt: string | null;
 };
 
+export type ThemeMode = 'light' | 'dark' | 'system';
+
+export type SettingsSection = 'general' | 'appearance' | 'usage';
+
+export type SettingsAppearanceSummary = {
+  themeMode: ThemeMode;
+};
+
 export type SettingsSummary = {
   providers: ProviderCredentialSummary[];
+  appearance: SettingsAppearanceSummary;
   showFreeOnlyByDefault: boolean;
   modelCatalogLastSyncedAt: string | null;
   modelCatalogStale: boolean;
@@ -259,8 +268,36 @@ export type StreamEvent =
   | StreamErrorEvent
   | StreamDoneEvent;
 
+export type UsageMetricState = 'available' | 'loading' | 'unavailable' | 'not_connected';
+
+export type UsageProviderSummary = {
+  providerId: ProviderId;
+  label: string;
+  state: UsageMetricState;
+  primary: string;
+  secondary: string;
+  meterLabel?: string;
+  meterValue?: number | null;
+};
+
+export type UsageSummary = {
+  local: {
+    totalTokens: number;
+    inputTokens: number;
+    outputTokens: number;
+    reasoningTokens: number;
+    estimatedCostUsd: number | null;
+    loadedConversationCount: number;
+    loadedMessageCount: number;
+  };
+  providers: UsageProviderSummary[];
+};
+
 export type SettingsUpdateRequest = {
   showFreeOnlyByDefault?: boolean;
+  appearance?: {
+    themeMode?: ThemeMode;
+  };
 };
 
 export type AppUpdateProgress = {
@@ -326,6 +363,7 @@ export type RendererApi = {
     list: () => Promise<ConversationSummary[]>;
     create: () => Promise<ConversationSummary>;
     get: (conversationId: string) => Promise<ConversationDetail>;
+    delete: (conversationId: string) => Promise<void>;
   };
   chat: {
     start: (request: ChatStartRequest) => Promise<ChatStartResponse>;

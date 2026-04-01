@@ -58,7 +58,7 @@ export function Composer({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const selectedModel = useMemo(
     () => models.find((model) => model.id === selectedModelId) ?? null,
-    [models, selectedModelId]
+    [models, selectedModelId],
   );
 
   useEffect(() => {
@@ -96,7 +96,7 @@ export function Composer({
     const processedFromMessages =
       detail?.messages.reduce(
         (sum, message) => sum + Math.max(0, message.inputTokens ?? 0) + Math.max(0, message.outputTokens ?? 0),
-        0
+        0,
       ) ?? 0;
     const fallbackConversationInput =
       detail?.messages.reduce((sum, message) => sum + estimateTokens(message.content), 0) ?? 0;
@@ -104,19 +104,18 @@ export function Composer({
     const draftText = draft ? getTextContentFromParts(draft.parts) : '';
 
     const inputTokens =
-      Math.max(
-        0,
-        draft?.inputTokens ?? latestUsageMessage?.inputTokens ?? fallbackConversationInput
-      ) + pendingInput;
+      Math.max(0, draft?.inputTokens ?? latestUsageMessage?.inputTokens ?? fallbackConversationInput) + pendingInput;
     const outputTokens = Math.max(0, draft?.outputTokens ?? latestUsageMessage?.outputTokens ?? 0);
-    const reasoningTokens = Math.max(
-      0,
-      draft?.reasoningTokens ?? latestUsageMessage?.reasoningTokens ?? 0
-    );
+    const reasoningTokens = Math.max(0, draft?.reasoningTokens ?? latestUsageMessage?.reasoningTokens ?? 0);
 
     const parts = selectedModel.id.split('/');
     const tokenLensModelId =
-      parts.length > 1 ? `${parts[0]}:${parts.slice(1).join('/').replace(/:free$/i, '')}` : undefined;
+      parts.length > 1
+        ? `${parts[0]}:${parts
+            .slice(1)
+            .join('/')
+            .replace(/:free$/i, '')}`
+        : undefined;
 
     return {
       maxTokens: contextWindow,

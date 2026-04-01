@@ -101,7 +101,6 @@
    Uncomment and adjust values when ready.
    ============================================ */
 
-/*
 [data-theme="light"] {
   color-scheme: light;
 
@@ -151,7 +150,6 @@
 
   --shadow-elevated: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
 }
-*/
 
 /* ============================================
    LAYER 2: Tailwind @theme mapping

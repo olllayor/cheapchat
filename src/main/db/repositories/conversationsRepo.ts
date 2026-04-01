@@ -200,6 +200,17 @@ export class ConversationsRepo {
     return this.list().find((conversation: ConversationSummary) => conversation.id === id)!;
   }
 
+  delete(conversationId: string) {
+    this.db
+      .prepare(
+        `
+          DELETE FROM conversations
+          WHERE id = @conversationId
+        `
+      )
+      .run({ conversationId });
+  }
+
   get(conversationId: string): ConversationDetail {
     const conversation = this.db
       .prepare<{ conversationId: string }, ConversationRow>(

@@ -8,6 +8,7 @@ export const IPC_CHANNELS = {
   conversationsList: 'conversations:list',
   conversationsCreate: 'conversations:create',
   conversationsGet: 'conversations:get',
+  conversationsDelete: 'conversations:delete',
   chatStart: 'chat:start',
   chatAbort: 'chat:abort',
   chatEvent: 'chat:event',

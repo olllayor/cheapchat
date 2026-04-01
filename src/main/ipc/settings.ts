@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron/main';
 
 import { IPC_CHANNELS } from '../../shared/ipc';
+import type { SettingsUpdateRequest } from '../../shared/contracts';
 import type { ModelRegistry } from '../ai/core/ModelRegistry';
 import type { SettingsRepo } from '../db/repositories/settingsRepo';
 import type { KeychainStore } from '../secrets/keychain';
@@ -44,11 +45,15 @@ export function registerSettingsIpc({ settingsRepo, modelRegistry, keychain }: S
 
   ipcMain.handle(
     IPC_CHANNELS.settingsUpdatePreferences,
-    (event, patch: { showFreeOnlyByDefault?: boolean }) => {
+    (event, patch: SettingsUpdateRequest) => {
       assertTrustedSender(event);
 
       if (typeof patch?.showFreeOnlyByDefault === 'boolean') {
         settingsRepo.setShowFreeOnlyByDefault(patch.showFreeOnlyByDefault);
+      }
+
+      if (patch?.appearance?.themeMode) {
+        settingsRepo.setThemeMode(patch.appearance.themeMode);
       }
 
       return modelRegistry.getSettingsSummary();
