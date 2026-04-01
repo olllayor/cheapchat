@@ -63,8 +63,9 @@
   --scrollbar-hover: rgba(255, 255, 255, 0.18);
 
   /* Typography */
-  --font-sans: 'Geist Variable', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', 'Consolas', monospace;
+  --default-font-family: ui-sans-serif, -apple-system, system-ui, Segoe UI, Helvetica, Apple Color Emoji, Arial, sans-serif, Segoe UI Emoji, Segoe UI Symbol;
+  --font-code-sans: 'Geist Variable', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-code-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', 'Consolas', monospace;
 
   /* Layout */
   --content-max: clamp(820px, 74vw, 1120px);
@@ -223,8 +224,8 @@
   --color-scrollbar: var(--scrollbar);
   --color-scrollbar-hover: var(--scrollbar-hover);
 
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
+  --font-sans: var(--default-font-family);
+  --font-mono: var(--font-code-mono);
 
   --spacing-content-max: var(--content-max);
   --spacing-sidebar-expanded: var(--sidebar-expanded);
@@ -259,7 +260,7 @@ body,
 }
 
 body {
-  font-family: var(--font-sans);
+  font-family: var(--default-font-family);
   background:
     radial-gradient(circle at top, rgba(79, 102, 255, 0.09), transparent 30%),
     radial-gradient(circle at 78% 16%, rgba(255, 255, 255, 0.03), transparent 24%),
@@ -376,6 +377,10 @@ select {
   font-weight: 500;
   font-size: 0.875rem;
   transition: background var(--duration-fast) ease;
+}
+
+.font-code-sans {
+  font-family: var(--font-code-sans);
 }
 
 .btn-secondary:hover {

@@ -174,7 +174,7 @@ export function CodeBlock({ code, language, isIncomplete = false, className }: C
     >
       <div className="flex items-center justify-between gap-3 border-b border-border-subtle/80 bg-[#111318] px-3 py-2">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-text-faint">
+          <span className="font-code-sans text-[10px] font-medium uppercase tracking-[0.16em] text-text-faint">
             {languageLabel}
           </span>
           {isIncomplete && <span className="text-[10px] text-text-faint">Streaming</span>}

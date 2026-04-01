@@ -60,33 +60,28 @@ const suggestions = [
 function MessageMeta({
   latencyMs,
   modelLabel,
-  status,
 }: {
   latencyMs?: number | null;
   modelLabel?: string | null;
-  status?: 'streaming' | 'error' | 'aborted';
 }) {
-  if (!latencyMs && !modelLabel && status !== 'streaming') {
+  if (!latencyMs && !modelLabel) {
     return null;
   }
 
   return (
-    <div className="mt-1 flex min-h-4 flex-wrap items-center gap-1 text-[10.5px] leading-none text-text-faint/65">
-      {latencyMs ? <span className="tabular-nums">{latencyMs}ms</span> : null}
-      {latencyMs && modelLabel ? <span className="text-text-faint/35">·</span> : null}
-      {modelLabel ? (
-        <span className="max-w-[320px] truncate text-text-faint/75" title={modelLabel}>
-          {modelLabel}
+    <div className="mt-3 flex min-h-4 flex-wrap items-center gap-2">
+      {latencyMs ? (
+        <span className="inline-flex items-center rounded-full border border-border-subtle bg-bg-hover px-2.5 py-1 font-mono text-[10.5px] leading-none tabular-nums text-text-faint/85">
+          {latencyMs}ms
         </span>
       ) : null}
-      {status === 'streaming' ? (
-        <>
-          {(latencyMs || modelLabel) && <span className="text-text-faint/35">·</span>}
-          <span className="inline-flex items-center gap-1 text-success-text/80">
-            <span className="h-1 w-1 animate-pulse rounded-full bg-success" />
-            <span>streaming</span>
-          </span>
-        </>
+      {modelLabel ? (
+        <span
+          className="inline-flex max-w-[min(100%,360px)] items-center rounded-full border border-border-subtle bg-bg-hover px-2.5 py-1 text-[10.5px] leading-none text-text-faint/80"
+          title={modelLabel}
+        >
+          {modelLabel}
+        </span>
       ) : null}
     </div>
   );
@@ -335,7 +330,6 @@ function StreamingRow({
         ) : (
           <>
             <AssistantParts isStreaming={status === 'streaming'} parts={parts} />
-            <MessageMeta modelLabel={modelLabel} status={status} />
           </>
         )}
       </div>
