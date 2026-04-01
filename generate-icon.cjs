@@ -4,22 +4,8 @@ const { execFileSync } = require('node:child_process');
 
 const SOURCE_ICON = path.join(__dirname, 'icon.png');
 const BUILD_DIR = path.join(__dirname, 'build');
-const ICONSET_DIR = path.join(BUILD_DIR, 'icon.iconset');
 const RUNTIME_ICON = path.join(BUILD_DIR, 'icon.png');
 const ICNS_ICON = path.join(BUILD_DIR, 'icon.icns');
-
-const ICONSET_SIZES = [
-  { name: 'icon_16x16.png', size: 16 },
-  { name: 'icon_16x16@2x.png', size: 32 },
-  { name: 'icon_32x32.png', size: 32 },
-  { name: 'icon_32x32@2x.png', size: 64 },
-  { name: 'icon_128x128.png', size: 128 },
-  { name: 'icon_128x128@2x.png', size: 256 },
-  { name: 'icon_256x256.png', size: 256 },
-  { name: 'icon_256x256@2x.png', size: 512 },
-  { name: 'icon_512x512.png', size: 512 },
-  { name: 'icon_512x512@2x.png', size: 1024 },
-];
 
 function readPngDimensions(filePath) {
   const handle = fs.openSync(filePath, 'r');
@@ -58,6 +44,53 @@ function resizePng(sourcePath, size, outputPath) {
   );
 }
 
+function resolveAppBuilderPath() {
+  const electronBuilderDir = path.dirname(require.resolve('electron-builder/package.json'));
+  const appBuilderBin = require(require.resolve('app-builder-bin', { paths: [electronBuilderDir] }));
+
+  if (!appBuilderBin?.appBuilderPath) {
+    throw new Error('Unable to resolve app-builder-bin from electron-builder.');
+  }
+
+  return appBuilderBin.appBuilderPath;
+}
+
+function createIcns(sourcePath) {
+  const appBuilderPath = resolveAppBuilderPath();
+  const rawResult = execFileSync(
+    appBuilderPath,
+    [
+      'icon',
+      '--format',
+      'icns',
+      '--root',
+      BUILD_DIR,
+      '--root',
+      __dirname,
+      '--input',
+      sourcePath,
+      '--out',
+      BUILD_DIR,
+    ],
+    { encoding: 'utf8' }
+  );
+
+  let result = {};
+  if (rawResult.trim()) {
+    try {
+      result = JSON.parse(rawResult);
+    } catch (error) {
+      throw new Error(`app-builder returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  if (!fs.existsSync(ICNS_ICON)) {
+    throw new Error(`ICNS icon was not created at ${ICNS_ICON}. Result: ${rawResult.trim() || '<empty>'}`);
+  }
+
+  return result;
+}
+
 function main() {
   if (!fs.existsSync(SOURCE_ICON)) {
     throw new Error(`Source icon not found: ${SOURCE_ICON}`);
@@ -75,29 +108,16 @@ function main() {
   }
 
   fs.mkdirSync(BUILD_DIR, { recursive: true });
+  fs.rmSync(path.join(BUILD_DIR, 'icon.iconset'), { recursive: true, force: true });
 
-  // Generate runtime icon (1024x1024)
+  // Generate runtime PNG for dev/runtime icon loading.
   resizePng(SOURCE_ICON, 1024, RUNTIME_ICON);
   console.log(`✓ Created ${path.relative(__dirname, RUNTIME_ICON)} (1024x1024)`);
 
-  // Generate iconset
-  if (fs.existsSync(ICONSET_DIR)) {
-    fs.rmSync(ICONSET_DIR, { recursive: true, force: true });
-  }
-  fs.mkdirSync(ICONSET_DIR, { recursive: true });
-
-  for (const { name, size } of ICONSET_SIZES) {
-    const outputPath = path.join(ICONSET_DIR, name);
-    resizePng(SOURCE_ICON, size, outputPath);
-    console.log(`✓ Created iconset/${name} (${size}x${size})`);
-  }
-
-  // Generate .icns from iconset
-  execFileSync('iconutil', ['-c', 'icns', ICONSET_DIR, '-o', ICNS_ICON], { stdio: 'inherit' });
+  // Generate .icns using electron-builder's bundled app-builder. This is more
+  // reliable than iconutil for web-exported PNG sources.
+  createIcns(SOURCE_ICON);
   console.log(`✓ Created ${path.relative(__dirname, ICNS_ICON)}`);
-
-  // Clean up iconset directory
-  fs.rmSync(ICONSET_DIR, { recursive: true, force: true });
 
   console.log('\n✓ All macOS icons generated successfully.');
 }

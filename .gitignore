@@ -12,6 +12,7 @@ coverage
 *.db
 *.sqlite
 *.sqlite3
+.electron-runtime/
 plan.md
 .idea/
 .vscode/

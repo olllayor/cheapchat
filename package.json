@@ -28,7 +28,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "node scripts/dev.mjs",
     "build": "tsc --noEmit && electron-vite build",
     "preview": "electron-vite preview",
     "rebuild": "electron-rebuild -f -w better-sqlite3,keytar",
