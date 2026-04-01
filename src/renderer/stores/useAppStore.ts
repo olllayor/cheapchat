@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import type {
   AppUpdateSnapshot,
+  ChatMessagePart,
   ConversationDetail,
   ConversationSummary,
   ModelSummary,
@@ -10,16 +11,18 @@ import type {
   SettingsSummary,
   StreamEvent
 } from '../../shared/contracts';
+import { applyStreamEventToParts } from '../../shared/messageParts';
 
 type DraftState = {
   requestId: string;
   providerId: ProviderId;
   modelId: string;
-  content: string;
+  parts: ChatMessagePart[];
   status: 'streaming' | 'error' | 'aborted';
   errorMessage?: string;
   inputTokens?: number;
   outputTokens?: number;
+  reasoningTokens?: number;
   latencyMs?: number;
   startedAt: string;
 };
@@ -445,6 +448,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       providerId: 'openrouter' as const,
       modelId,
       messages: [...completeMessages, { role: 'user' as const, content: trimmed }],
+      enableTools: Boolean(state.models.find((model) => model.id === modelId)?.supportsTools),
       temperature: 0.65
     });
 
@@ -462,11 +466,21 @@ export const useAppStore = create<AppState>((set, get) => ({
               conversationId,
               role: 'user' as const,
               content: trimmed,
+              reasoning: null,
+              parts: [
+                {
+                  id: `text-${request.requestId}`,
+                  type: 'text' as const,
+                  text: trimmed,
+                  state: 'done' as const
+                }
+              ],
               status: 'complete' as const,
               providerId: 'openrouter' as const,
               modelId,
               inputTokens: null,
               outputTokens: null,
+              reasoningTokens: null,
               latencyMs: null,
               errorCode: null,
               createdAt: now
@@ -480,7 +494,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           requestId: request.requestId,
           providerId: 'openrouter' as const,
           modelId,
-          content: '',
+          parts: [],
           status: 'streaming' as const,
           startedAt: now
         }
@@ -522,7 +536,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
 
-    if (event.type === 'chunk') {
+    if (
+      event.type === 'chunk' ||
+      event.type === 'reasoning' ||
+      event.type === 'tool-input-start' ||
+      event.type === 'tool-input-delta' ||
+      event.type === 'tool-input-available' ||
+      event.type === 'tool-output-available' ||
+      event.type === 'tool-output-error' ||
+      event.type === 'tool-output-denied'
+    ) {
       set((state) => {
         const draft = state.draftsByConversation[conversationId];
         if (!draft) {
@@ -534,7 +557,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             ...state.draftsByConversation,
             [conversationId]: {
               ...draft,
-              content: `${draft.content}${event.delta}`
+              parts: applyStreamEventToParts(draft.parts, event)
             }
           }
         };
@@ -556,6 +579,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               ...draft,
               inputTokens: event.inputTokens,
               outputTokens: event.outputTokens,
+              reasoningTokens: event.reasoningTokens,
               latencyMs: event.latencyMs
             }
           }
@@ -567,6 +591,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (event.type === 'error') {
       const detail = await window.cheapChat.conversations.get(conversationId);
       const conversations = await window.cheapChat.conversations.list();
+      const shouldShowNotice =
+        event.code === 'auth_error' || event.code === 'missing_credential';
 
       set((state) => {
         const draft = state.draftsByConversation[conversationId];
@@ -591,10 +617,12 @@ export const useAppStore = create<AppState>((set, get) => ({
               errorMessage: event.message
             }
           },
-          notice: {
-            tone: event.code === 'aborted' ? 'info' : 'error',
-            message: event.message
-          }
+          notice: shouldShowNotice
+            ? {
+                tone: 'error',
+                message: event.message
+              }
+            : null
         };
       });
       return;
