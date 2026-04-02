@@ -1,9 +1,22 @@
-import { ArrowUp, Square } from 'lucide-react';
+import { PlusIcon } from '@radix-ui/react-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import {
+  ATTACHMENT_ACCEPT_ATTRIBUTE,
+  MAX_ATTACHMENT_COUNT,
+  MAX_ATTACHMENT_SIZE_BYTES,
+  getAttachmentCapabilityError,
+} from '../../shared/attachments';
 import type { ConversationDetail, ModelSummary } from '../../shared/contracts';
 import { getTextContentFromParts } from '../../shared/messageParts';
 import { ModelSelector } from './ModelSelector';
+import {
+  Attachment,
+  AttachmentInfo,
+  AttachmentPreview,
+  AttachmentRemove,
+  Attachments,
+} from './ai-elements/attachments';
 import {
   Context,
   ContextContent,
@@ -14,12 +27,15 @@ import {
 } from './ai-elements/context';
 import {
   PromptInput,
-  type PromptInputMessage,
   PromptInputBody,
-  PromptInputTextarea,
+  PromptInputButton,
   PromptInputFooter,
-  PromptInputTools,
+  PromptInputHeader,
+  type PromptInputMessage,
   PromptInputSubmit,
+  PromptInputTextarea,
+  PromptInputTools,
+  usePromptInputAttachments,
 } from './ai-elements/prompt-input';
 import type { DraftStateLike } from './types';
 
@@ -32,12 +48,146 @@ type ComposerProps = {
   detail: ConversationDetail | null;
   draft: DraftStateLike | null;
   onChange: (value: string) => void;
-  onSend: () => void;
+  onSend: (message: PromptInputMessage) => Promise<void> | void;
   onAbort: () => void;
   onSelectModel: (modelId: string) => void;
   onRefreshModels?: () => void;
   isRefreshingModels?: boolean;
 };
+
+function ComposerAttachmentsHeader() {
+  const attachments = usePromptInputAttachments();
+
+  if (attachments.files.length === 0) {
+    return null;
+  }
+
+  return (
+    <PromptInputHeader className="px-4 pt-3">
+      <Attachments variant="inline" className="max-w-full">
+        {attachments.files.map((attachment) => (
+          <Attachment data={attachment} key={attachment.id} onRemove={() => attachments.remove(attachment.id)}>
+            <AttachmentPreview />
+            <AttachmentInfo />
+            <AttachmentRemove />
+          </Attachment>
+        ))}
+      </Attachments>
+    </PromptInputHeader>
+  );
+}
+
+function ComposerFooter({
+  attachmentError,
+  disabled,
+  hasText,
+  isRefreshingModels,
+  isStreaming,
+  modelPickerOpen,
+  models,
+  onAbort,
+  onAttachmentErrorClear,
+  onModelPickerOpenChange,
+  onRefreshModels,
+  onSelectModel,
+  selectedModel,
+  selectedModelId,
+  contextStats,
+}: {
+  attachmentError: string | null;
+  disabled: boolean;
+  hasText: boolean;
+  isRefreshingModels?: boolean;
+  isStreaming: boolean;
+  modelPickerOpen: boolean;
+  models: ModelSummary[];
+  onAbort: () => void;
+  onAttachmentErrorClear: () => void;
+  onModelPickerOpenChange: (open: boolean) => void;
+  onRefreshModels?: () => void;
+  onSelectModel: (modelId: string) => void;
+  selectedModel: ModelSummary | null;
+  selectedModelId: string | null;
+  contextStats: {
+    maxTokens: number;
+    modelId?: string;
+    processedTokens: number;
+    usage: {
+      inputTokens: number;
+      outputTokens: number;
+      reasoningTokens: number;
+    };
+    usedTokens: number;
+  } | null;
+}) {
+  const attachments = usePromptInputAttachments();
+  const unsupportedReason = getAttachmentCapabilityError(selectedModel, attachments.files);
+  const hasSubmittableContent = hasText || attachments.files.length > 0;
+  const footerMessage = attachmentError ?? unsupportedReason;
+
+  useEffect(() => {
+    if (attachments.files.length > 0) {
+      onAttachmentErrorClear();
+    }
+  }, [attachments.files.length, onAttachmentErrorClear]);
+
+  return (
+    <>
+      {footerMessage ? <div className="px-4 pb-2 text-[11px] leading-5 text-[#ffbd8a]">{footerMessage}</div> : null}
+
+      <PromptInputFooter className="flex items-center justify-between px-3.5 pb-3 pt-0.5">
+        <PromptInputTools className="flex items-center gap-1">
+          <PromptInputButton
+            className="size-8 rounded-full border border-white/8 bg-white/[0.03] text-white/58 hover:bg-white/[0.07] hover:text-white"
+            disabled={disabled || isStreaming}
+            onClick={() => attachments.openFileDialog()}
+            tooltip="Attach from disk"
+          >
+            <PlusIcon className="h-4 w-4" />
+          </PromptInputButton>
+
+          <ModelSelector
+            models={models}
+            selectedModelId={selectedModelId}
+            disabled={isStreaming}
+            open={modelPickerOpen}
+            onOpenChange={onModelPickerOpenChange}
+            onSelect={onSelectModel}
+            onRefresh={onRefreshModels}
+            isRefreshing={isRefreshingModels}
+          />
+        </PromptInputTools>
+
+        <div className="flex items-center gap-2">
+          {contextStats ? (
+            <Context
+              maxTokens={contextStats.maxTokens}
+              usedTokens={contextStats.usedTokens}
+              processedTokens={contextStats.processedTokens}
+              usage={contextStats.usage}
+              modelId={contextStats.modelId}
+            >
+              <ContextTrigger />
+              <ContextContent>
+                <ContextContentHeader />
+                <ContextContentBody />
+                <ContextContentFooter />
+              </ContextContent>
+            </Context>
+          ) : null}
+
+          <PromptInputSubmit
+            className="inline-flex size-8 items-center justify-center rounded-full bg-[#2b468f] text-white shadow-[0_8px_20px_rgba(43,70,143,0.24)] transition hover:bg-[#3553a8] disabled:cursor-not-allowed disabled:opacity-30"
+            disabled={isStreaming ? false : !hasSubmittableContent || disabled || Boolean(unsupportedReason)}
+            onStop={onAbort}
+            size="icon-sm"
+            status={isStreaming ? 'streaming' : 'ready'}
+          />
+        </div>
+      </PromptInputFooter>
+    </>
+  );
+}
 
 export function Composer({
   value,
@@ -55,6 +205,7 @@ export function Composer({
   isRefreshingModels,
 }: ComposerProps) {
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const selectedModel = useMemo(
     () => models.find((model) => model.id === selectedModelId) ?? null,
@@ -65,17 +216,20 @@ export function Composer({
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
   }, [value]);
 
   const handleSubmit = (message: PromptInputMessage) => {
-    if (message.text.trim() && !disabled && !isStreaming) {
-      onSend();
-    }
-  };
+    const hasText = Boolean(message.text.trim());
+    const hasAttachments = message.files.length > 0;
 
-  // Determine status for PromptInputSubmit
-  const status = isStreaming ? 'streaming' : 'ready';
+    if ((!hasText && !hasAttachments) || disabled || isStreaming) {
+      return;
+    }
+
+    setAttachmentError(null);
+    return onSend(message);
+  };
 
   const contextStats = useMemo(() => {
     const contextWindow = selectedModel?.contextWindow ?? null;
@@ -131,83 +285,54 @@ export function Composer({
   }, [detail, draft, selectedModel, value]);
 
   return (
-    <div className="px-6 py-4 lg:px-8">
+    <div className="px-5 py-3 lg:px-6">
       <div className="mx-auto max-w-content-max">
         <PromptInput
+          accept={ATTACHMENT_ACCEPT_ATTRIBUTE}
+          className="overflow-hidden rounded-[22px] border border-white/7 bg-[linear-gradient(180deg,rgba(30,34,41,0.92),rgba(24,27,34,0.96))] shadow-[0_14px_30px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.025)] transition-all focus-within:border-white/11 focus-within:bg-[linear-gradient(180deg,rgba(34,38,46,0.95),rgba(25,29,36,0.98))]"
+          globalDrop
+          maxFileSize={MAX_ATTACHMENT_SIZE_BYTES}
+          maxFiles={MAX_ATTACHMENT_COUNT}
+          multiple
+          onError={(error) => setAttachmentError(error.message)}
           onSubmit={handleSubmit}
-          className="overflow-hidden rounded-[30px] border border-white/8 bg-[linear-gradient(180deg,rgba(24,27,34,0.92),rgba(15,18,24,0.96))] shadow-[0_18px_40px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.03)] transition-all focus-within:border-white/12 focus-within:bg-[linear-gradient(180deg,rgba(26,29,36,0.96),rgba(16,19,25,0.98))]"
         >
-          <PromptInputBody className="px-5 pt-4">
+          <ComposerAttachmentsHeader />
+
+          <PromptInputBody className="px-4 pt-3.5 pb-1.5">
             <PromptInputTextarea
               ref={textareaRef}
               value={value}
               onChange={(e) => onChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  if (!disabled && !isStreaming && value.trim()) onSend();
-                }
-              }}
               disabled={disabled}
               rows={1}
               placeholder="Message..."
-              className="w-full resize-none border-0 bg-transparent text-[15px] leading-6 text-text-primary outline-none placeholder:text-white/32 disabled:cursor-not-allowed disabled:opacity-60"
-              style={{ maxHeight: '200px' }}
+              className="w-full min-h-10.5 resize-none border-0 bg-transparent px-0 py-0 text-[14.5px] leading-6 text-text-primary outline-none placeholder:text-white/28 disabled:cursor-not-allowed disabled:opacity-60"
+              style={{ maxHeight: '180px' }}
               name="message"
             />
           </PromptInputBody>
 
-          <PromptInputFooter className="flex items-center justify-between px-4 pb-4 pt-1.5">
-            <PromptInputTools className="flex items-center gap-1">
-              <ModelSelector
-                models={models}
-                selectedModelId={selectedModelId}
-                disabled={isStreaming}
-                open={modelPickerOpen}
-                onOpenChange={setModelPickerOpen}
-                onSelect={onSelectModel}
-                onRefresh={onRefreshModels}
-                isRefreshing={isRefreshingModels}
-              />
-            </PromptInputTools>
-
-            <div className="flex items-center gap-2">
-              {contextStats ? (
-                <Context
-                  maxTokens={contextStats.maxTokens}
-                  usedTokens={contextStats.usedTokens}
-                  processedTokens={contextStats.processedTokens}
-                  usage={contextStats.usage}
-                  modelId={contextStats.modelId}
-                >
-                  <ContextTrigger />
-                  <ContextContent>
-                    <ContextContentHeader />
-                    <ContextContentBody />
-                    <ContextContentFooter />
-                  </ContextContent>
-                </Context>
-              ) : null}
-
-              {isStreaming ? (
-                <button
-                  type="button"
-                  onClick={onAbort}
-                  className="inline-flex size-10 items-center justify-center rounded-full bg-error/12 text-error transition hover:bg-error/20"
-                >
-                  <Square className="h-4 w-4" />
-                </button>
-              ) : (
-                <PromptInputSubmit
-                  status={status as 'ready' | 'streaming'}
-                  disabled={disabled || !value.trim()}
-                  className="inline-flex size-10 items-center justify-center rounded-full bg-[#2b468f] text-white shadow-[0_12px_28px_rgba(43,70,143,0.34)] transition hover:bg-[#3553a8] disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  <ArrowUp className="h-4 w-4" />
-                </PromptInputSubmit>
-              )}
-            </div>
-          </PromptInputFooter>
+          <ComposerFooter
+            attachmentError={attachmentError}
+            disabled={disabled}
+            hasText={Boolean(value.trim())}
+            isRefreshingModels={isRefreshingModels}
+            isStreaming={isStreaming}
+            modelPickerOpen={modelPickerOpen}
+            models={models}
+            onAbort={onAbort}
+            onAttachmentErrorClear={() => setAttachmentError(null)}
+            onModelPickerOpenChange={setModelPickerOpen}
+            onRefreshModels={onRefreshModels}
+            onSelectModel={(modelId) => {
+              setModelPickerOpen(false);
+              onSelectModel(modelId);
+            }}
+            selectedModel={selectedModel}
+            selectedModelId={selectedModelId}
+            contextStats={contextStats}
+          />
         </PromptInput>
       </div>
     </div>

@@ -11,6 +11,7 @@ import { RendererErrorBoundary } from './components/RendererErrorBoundary';
 import { buildUsageSummary, SettingsWorkspace } from './components/SettingsWorkspace';
 import { Sidebar } from './components/Sidebar';
 import { AtlasToaster } from './components/ui/sonner';
+import { TooltipProvider } from './components/ui/tooltip';
 import { buildSidebarConversationItems } from './components/sidebarViewModel';
 import { prewarmMessageRendering } from './lib/messageRendering';
 import { selectDiagnosticsSummary, selectLoadedConversationMetrics, useAppStore } from './stores/useAppStore';
@@ -343,11 +344,14 @@ export default function App() {
               detail={activeConversation}
               draft={activeDraft}
               onChange={setComposerValue}
-              onSend={() => {
-                const payload = composerValue;
-                void sendMessage(payload)
+              onSend={(message) => {
+                const fallbackValue = message.text;
+                return sendMessage({
+                  text: message.text,
+                  files: message.files,
+                })
                   .then(() => setComposerValue(''))
-                  .catch(() => setComposerValue(payload));
+                  .catch(() => setComposerValue(fallbackValue));
               }}
               onAbort={() => {
                 if (selectedConversationId) void abortConversation(selectedConversationId);
@@ -364,9 +368,9 @@ export default function App() {
     );
 
   return (
-    <>
+    <TooltipProvider>
       <AtlasToaster />
       {content}
-    </>
+    </TooltipProvider>
   );
 }

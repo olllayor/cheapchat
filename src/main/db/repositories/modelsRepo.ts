@@ -8,6 +8,7 @@ type ModelRow = {
   context_window: number | null;
   is_free: number;
   supports_vision: number;
+  supports_document_input: number;
   supports_tools: number;
   archived: number;
   last_synced_at: string;
@@ -28,6 +29,7 @@ export class ModelsRepo {
             context_window,
             is_free,
             supports_vision,
+            supports_document_input,
             supports_tools,
             archived,
             last_synced_at,
@@ -49,6 +51,7 @@ export class ModelsRepo {
       contextWindow: row.context_window,
       isFree: Boolean(row.is_free),
       supportsVision: Boolean(row.supports_vision),
+      supportsDocumentInput: Boolean(row.supports_document_input),
       supportsTools: Boolean(row.supports_tools),
       archived: Boolean(row.archived),
       lastSyncedAt: row.last_synced_at,
@@ -73,6 +76,7 @@ export class ModelsRepo {
             context_window,
             is_free,
             supports_vision,
+            supports_document_input,
             supports_tools,
             archived,
             last_synced_at,
@@ -92,6 +96,7 @@ export class ModelsRepo {
       contextWindow: row.context_window,
       isFree: Boolean(row.is_free),
       supportsVision: Boolean(row.supports_vision),
+      supportsDocumentInput: Boolean(row.supports_document_input),
       supportsTools: Boolean(row.supports_tools),
       archived: Boolean(row.archived),
       lastSyncedAt: row.last_synced_at,
@@ -119,6 +124,7 @@ export class ModelsRepo {
           context_window,
           is_free,
           supports_vision,
+          supports_document_input,
           supports_tools,
           archived,
           last_synced_at,
@@ -131,6 +137,7 @@ export class ModelsRepo {
           @contextWindow,
           @isFree,
           @supportsVision,
+          @supportsDocumentInput,
           @supportsTools,
           @archived,
           @lastSyncedAt,
@@ -142,6 +149,7 @@ export class ModelsRepo {
           context_window = excluded.context_window,
           is_free = excluded.is_free,
           supports_vision = excluded.supports_vision,
+          supports_document_input = excluded.supports_document_input,
           supports_tools = excluded.supports_tools,
           archived = excluded.archived,
           last_synced_at = excluded.last_synced_at,
@@ -160,6 +168,7 @@ export class ModelsRepo {
           contextWindow: model.contextWindow,
           isFree: model.isFree ? 1 : 0,
           supportsVision: model.supportsVision ? 1 : 0,
+          supportsDocumentInput: model.supportsDocumentInput ? 1 : 0,
           supportsTools: model.supportsTools ? 1 : 0,
           archived: model.archived ? 1 : 0,
           lastSyncedAt: now,

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import type {
   AppUpdateSnapshot,
+  ChatInputFilePart,
   ChatMessagePart,
   ConversationPage,
   ConversationSummary,
@@ -15,7 +16,15 @@ import type {
   SettingsUpdateRequest,
   StreamEvent
 } from '../../shared/contracts';
-import { applyStreamEventToParts } from '../../shared/messageParts';
+import {
+  MAX_TOTAL_ATTACHMENT_SIZE_BYTES,
+  getAttachmentCapabilityError,
+  getContentPreviewText,
+  isSupportedAttachmentMediaType,
+  normalizeAttachmentMediaType,
+  sumAttachmentSize,
+} from '../../shared/attachments';
+import { applyStreamEventToParts, buildUserMessageParts } from '../../shared/messageParts';
 import { PROVIDER_METADATA } from '../../shared/providerMetadata';
 import {
   DEFAULT_CONVERSATION_PAGE_SIZE,
@@ -91,7 +100,7 @@ type AppState = {
   checkForUpdates: (options?: { manual?: boolean }) => Promise<void>;
   performUpdatePrimaryAction: () => Promise<void>;
   setSelectedModel: (conversationId: string, modelId: string) => void;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (message: { text: string; files: ChatInputFilePart[] }) => Promise<void>;
   abortConversation: (conversationId: string) => Promise<void>;
   deleteConversation: (conversationId: string) => Promise<void>;
   handleStreamEvent: (event: StreamEvent) => Promise<void>;
@@ -617,9 +626,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
   },
 
-  sendMessage: async (content) => {
-    const trimmed = content.trim();
-    if (!trimmed) {
+  sendMessage: async (message) => {
+    const trimmed = message.text.trim();
+    const normalizedFiles = message.files.map((file) => ({
+      ...file,
+      mediaType: normalizeAttachmentMediaType(file.mediaType, file.filename),
+    }));
+
+    if (!trimmed && normalizedFiles.length === 0) {
       return;
     }
 
@@ -667,6 +681,36 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
 
+    const unsupportedAttachment = normalizedFiles.find(
+      (file) => !isSupportedAttachmentMediaType(file.mediaType, file.filename),
+    );
+
+    if (unsupportedAttachment) {
+      notify({
+        tone: 'error',
+        title: `${unsupportedAttachment.filename ?? 'This file'} is not a supported attachment type.`,
+      });
+      return;
+    }
+
+    const totalAttachmentBytes = sumAttachmentSize(normalizedFiles);
+    if (totalAttachmentBytes > MAX_TOTAL_ATTACHMENT_SIZE_BYTES) {
+      notify({
+        tone: 'error',
+        title: 'Attachments are too large to send together.',
+      });
+      return;
+    }
+
+    const attachmentCapabilityError = getAttachmentCapabilityError(selectedModel, normalizedFiles);
+    if (attachmentCapabilityError) {
+      notify({
+        tone: 'error',
+        title: attachmentCapabilityError,
+      });
+      return;
+    }
+
     const credential = findCredential(state.settings, providerId);
     if (!credential?.hasSecret) {
       notify({
@@ -680,16 +724,48 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
 
-    const request = await window.atlasChat.chat.start({
-      conversationId,
-      providerId,
-      modelId,
-      messages: [{ role: 'user' as const, content: trimmed }],
-      enableTools: Boolean(selectedModel.supportsTools),
-      temperature: 0.65
-    });
+    const inputParts = [
+      ...(trimmed ? [{ type: 'text' as const, text: trimmed }] : []),
+      ...normalizedFiles.map((file) => ({
+        type: 'file' as const,
+        filename: file.filename,
+        mediaType: file.mediaType,
+        sizeBytes: file.sizeBytes ?? null,
+        url: file.url,
+      })),
+    ];
+    const previewContent = getContentPreviewText(trimmed, inputParts);
+
+    let request;
+    try {
+      request = await window.atlasChat.chat.start({
+        conversationId,
+        providerId,
+        modelId,
+        messages: [
+          {
+            role: 'user' as const,
+            content: previewContent,
+            parts: inputParts,
+          },
+        ],
+        enableTools: Boolean(selectedModel.supportsTools),
+        temperature: 0.65
+      });
+    } catch (error) {
+      notify({
+        tone: 'error',
+        title: getErrorMessage(error),
+      });
+      throw error;
+    }
 
     const now = new Date().toISOString();
+    const optimisticParts = buildUserMessageParts({
+      content: trimmed,
+      parts: inputParts,
+      idPrefix: request.requestId,
+    });
 
     set((current) => ({
       conversationDetails: {
@@ -702,16 +778,9 @@ export const useAppStore = create<AppState>((set, get) => ({
               id: `optimistic-${request.requestId}`,
               conversationId,
               role: 'user' as const,
-              content: trimmed,
+              content: previewContent,
               reasoning: null,
-              parts: [
-                {
-                  id: `text-${request.requestId}`,
-                  type: 'text' as const,
-                  text: trimmed,
-                  state: 'done' as const
-                }
-              ],
+              parts: optimisticParts,
               status: 'complete' as const,
               providerId,
               modelId,
@@ -753,8 +822,8 @@ export const useAppStore = create<AppState>((set, get) => ({
                 ...conversation,
                 updatedAt: now,
                 lastMessageAt: now,
-                lastMessagePreview: trimmed,
-                lastUserMessagePreview: trimmed,
+                lastMessagePreview: previewContent,
+                lastUserMessagePreview: previewContent,
                 defaultProviderId: providerId,
                 defaultModelId: modelId
               }

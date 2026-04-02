@@ -9,7 +9,6 @@ import {
   Copy,
   FileText,
   Lightbulb,
-  MessageSquare,
   PenTool,
   RefreshCw,
   Search,
@@ -19,8 +18,12 @@ import {
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useStickToBottom } from 'use-stick-to-bottom';
 
+import appIcon from '../../../icon.png';
 import type { ChatMessage, ChatMessagePart, ConversationPage } from '../../shared/contracts';
+import { getMessageFileParts } from '../../shared/attachments';
+import { cn } from '../lib/utils';
 import type { DraftStateLike } from './types';
+import { Attachment, AttachmentInfo, AttachmentPreview, Attachments } from './ai-elements/attachments';
 import { ConversationEmptyState } from './ai-elements/conversation';
 import { MessageResponse } from './ai-elements/message';
 import {
@@ -30,11 +33,7 @@ import {
   ConfirmationRequest,
   ConfirmationTitle,
 } from './ai-elements/confirmation';
-import {
-  Reasoning,
-  ReasoningContent,
-  ReasoningTrigger,
-} from './ai-elements/reasoning';
+import { Reasoning, ReasoningContent, ReasoningTrigger } from './ai-elements/reasoning';
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from './ai-elements/tool';
 import { useClipboard } from '../hooks/useClipboard';
 
@@ -51,7 +50,7 @@ type ChatWindowProps = {
 
 const HISTORY_LEADING_OVERSCAN = 4;
 const HISTORY_TRAILING_OVERSCAN = 2;
-const HISTORY_GAP_PX = 32;
+const HISTORY_GAP_PX = 26;
 
 const suggestions = [
   { icon: Lightbulb, text: 'Explain a concept', prompt: 'Explain quantum computing in simple terms' },
@@ -62,13 +61,7 @@ const suggestions = [
   { icon: Search, text: 'Research something', prompt: 'Tell me about ' },
 ];
 
-function MessageMeta({
-  latencyMs,
-  modelLabel,
-}: {
-  latencyMs?: number | null;
-  modelLabel?: string | null;
-}) {
+function MessageMeta({ latencyMs, modelLabel }: { latencyMs?: number | null; modelLabel?: string | null }) {
   if (!latencyMs && !modelLabel) {
     return null;
   }
@@ -120,9 +113,7 @@ function ReasoningRow({
 
 function ToolRow({ part }: { part: Extract<ChatMessagePart, { type: 'tool' }> }) {
   const isOutputState =
-    part.state === 'output-available' ||
-    part.state === 'output-error' ||
-    part.state === 'output-denied';
+    part.state === 'output-available' || part.state === 'output-error' || part.state === 'output-denied';
   const hasInput = part.rawInput != null || part.input != null;
   const hasOutput = part.output != null || Boolean(part.errorText) || part.state === 'output-denied';
   const hasApproval = Boolean(part.approval);
@@ -138,7 +129,11 @@ function ToolRow({ part }: { part: Extract<ChatMessagePart, { type: 'tool' }> })
       />
       {hasInput || hasOutput || hasApproval ? (
         <ToolContent>
-          <Confirmation approval={part.approval} state={part.state} className={hasInput || hasOutput ? 'mb-3' : undefined}>
+          <Confirmation
+            approval={part.approval}
+            state={part.state}
+            className={hasInput || hasOutput ? 'mb-3' : undefined}
+          >
             <ConfirmationTitle>Tool approval</ConfirmationTitle>
             <ConfirmationRequest>
               <div>
@@ -170,6 +165,55 @@ function ToolRow({ part }: { part: Extract<ChatMessagePart, { type: 'tool' }> })
         </ToolContent>
       ) : null}
     </Tool>
+  );
+}
+
+function formatBytes(value: number | null | undefined) {
+  if (!value || value <= 0) {
+    return null;
+  }
+
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = value;
+  let unitIndex = 0;
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+
+  const digits = size >= 10 || unitIndex === 0 ? 0 : 1;
+  return `${size.toFixed(digits)} ${units[unitIndex]}`;
+}
+
+function AttachmentRow({
+  attachments,
+  align = 'start',
+}: {
+  attachments: Extract<ChatMessagePart, { type: 'file' }>[];
+  align?: 'start' | 'end';
+}) {
+  if (attachments.length === 0) {
+    return null;
+  }
+
+  return (
+    <Attachments
+      variant="inline"
+      className={align === 'end' ? 'mb-2 ml-auto max-w-[min(56%,560px)] justify-end' : 'mb-2 max-w-full'}
+    >
+      {attachments.map((attachment) => {
+        const sizeLabel = formatBytes(attachment.sizeBytes ?? null);
+
+        return (
+          <Attachment data={attachment} key={attachment.id} className="max-w-full">
+            <AttachmentPreview />
+            <AttachmentInfo />
+            {sizeLabel ? <span className="shrink-0 text-[10px] text-text-faint/70">{sizeLabel}</span> : null}
+          </Attachment>
+        );
+      })}
+    </Attachments>
   );
 }
 
@@ -215,17 +259,16 @@ function AssistantParts({
       {parts.map((part, index) => {
         if (part.type === 'reasoning') {
           return (
-            <ReasoningRow
-              key={`reasoning-${index}`}
-              text={part.text}
-              latencyMs={latencyMs}
-              isStreaming={isStreaming}
-            />
+            <ReasoningRow key={`reasoning-${index}`} text={part.text} latencyMs={latencyMs} isStreaming={isStreaming} />
           );
         }
 
         if (part.type === 'tool') {
           return <ToolRow key={part.toolCallId} part={part} />;
+        }
+
+        if (part.type === 'file') {
+          return <AttachmentRow key={part.id} attachments={[part]} />;
         }
 
         return (
@@ -253,24 +296,36 @@ function MessageRow({
 }) {
   const { copied, copy } = useClipboard();
   const isAssistant = message.role === 'assistant';
+  const fileParts = getMessageFileParts(message.parts);
+  const userText =
+    message.parts
+      .filter((part): part is Extract<ChatMessagePart, { type: 'text' }> => part.type === 'text')
+      .map((part) => part.text)
+      .join('\n\n')
+      .trim() || (message.parts.length === 0 ? message.content.trim() : '');
 
   if (!isAssistant) {
     return (
       <div className="group flex w-full justify-end">
-        <div className="max-w-[min(62%,680px)]">
-          <div className="rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.085),rgba(255,255,255,0.045))] px-5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            <p className="whitespace-pre-wrap text-[14px] leading-7 text-text-primary">{message.content}</p>
-          </div>
-          <div className="mt-1.5 flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-            <button
-              type="button"
-              onClick={() => void copy(message.content)}
-              className="rounded-full p-1.5 text-text-faint transition hover:bg-bg-hover hover:text-text-primary"
-              title={copied ? 'Copied!' : 'Copy'}
-            >
-              {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
-            </button>
-          </div>
+        <div className="max-w-[min(56%,560px)]">
+          <AttachmentRow attachments={fileParts} align="end" />
+          {userText ? (
+            <div className="rounded-[22px] border border-white/7 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.04))] px-[18px] py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+              <p className="whitespace-pre-wrap text-[13.5px] leading-[1.65rem] text-text-primary">{userText}</p>
+            </div>
+          ) : null}
+          {userText ? (
+            <div className="mt-1.5 flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+              <button
+                type="button"
+                onClick={() => void copy(userText)}
+                className="rounded-full p-1.5 text-text-faint transition hover:bg-bg-hover hover:text-text-primary"
+                title={copied ? 'Copied!' : 'Copy'}
+              >
+                {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
     );
@@ -278,7 +333,7 @@ function MessageRow({
 
   return (
     <div className="group flex w-full">
-      <div className="min-w-0 max-w-[min(100%,82ch)] flex-1">
+      <div className="min-w-0 max-w-[min(100%,76ch)] flex-1">
         <AssistantParts
           content={message.content}
           latencyMs={message.status === 'complete' ? message.latencyMs : null}
@@ -286,7 +341,10 @@ function MessageRow({
           deferRichContent={deferRichContent}
         />
 
-        <MessageMeta latencyMs={message.status === 'complete' ? message.latencyMs : null} modelLabel={message.modelId} />
+        <MessageMeta
+          latencyMs={message.status === 'complete' ? message.latencyMs : null}
+          modelLabel={message.modelId}
+        />
 
         <div className="mt-1.5 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
           <button
@@ -329,7 +387,7 @@ function StreamingRow({
 
   return (
     <div className="group flex w-full">
-      <div className="min-w-0 max-w-[min(100%,84ch)] flex-1">
+      <div className="min-w-0 max-w-[min(100%,76ch)] flex-1">
         {isError ? (
           <div className="rounded-2xl border border-error-border bg-error-bg p-4">
             <div className="flex items-start gap-3">
@@ -373,34 +431,44 @@ function buildHistoryRangeExtractor(isStreaming: boolean) {
 }
 
 function estimateHistoryRowHeight(message: ChatMessage) {
+  const fileCount = getMessageFileParts(message.parts).length;
   if (message.role === 'user') {
-    return Math.min(260, 96 + Math.ceil(message.content.length / 120) * 22);
+    return Math.min(320, 84 + Math.ceil(message.content.length / 120) * 22 + fileCount * 28);
   }
 
   const toolCount = message.parts.filter((part) => part.type === 'tool').length;
   const reasoningCount = message.parts.filter((part) => part.type === 'reasoning').length;
-  return Math.min(520, 156 + Math.ceil(message.content.length / 100) * 24 + toolCount * 84 + reasoningCount * 56);
+  return Math.min(
+    560,
+    156 + Math.ceil(message.content.length / 100) * 24 + toolCount * 84 + reasoningCount * 56 + fileCount * 28,
+  );
 }
 
 function SuggestionsState({ onSuggestionClick }: { onSuggestionClick: (prompt: string) => void }) {
   return (
-    <ConversationEmptyState
-      icon={<MessageSquare className="h-12 w-12 text-text-muted" />}
-      title="What can I help with?"
-      description="Start with a prompt below or type your own message."
-    >
-      <div className="mt-6 grid w-full max-w-lg grid-cols-2 gap-3">
-        {suggestions.map(({ icon: Icon, text, prompt }) => (
-          <button
-            key={text}
-            type="button"
-            onClick={() => onSuggestionClick(prompt)}
-            className="flex items-center gap-3 rounded-xl border border-border-medium bg-bg-hover px-4 py-3 text-left text-sm text-text-tertiary transition hover:bg-bg-active hover:text-text-primary"
-          >
-            <Icon className="h-4 w-4 shrink-0 text-text-muted" />
-            <span className="truncate">{text}</span>
-          </button>
-        ))}
+    <ConversationEmptyState>
+      <div className="flex w-full max-w-xl flex-col items-center text-center">
+        <div className="flex items-center justify-center">
+          <img src={appIcon} alt="Atlas" className="size-20 object-contain" />
+        </div>
+        <h2 className="mt-5 text-[26px] font-medium tracking-[-0.025em] text-text-primary">What can I help with?</h2>
+        <p className="mt-2 max-w-md text-[14px] leading-6 text-text-tertiary">
+          Start with a prompt below or type your own message.
+        </p>
+
+        <div className="mt-8 grid w-full max-w-lg grid-cols-2 gap-3">
+          {suggestions.map(({ icon: Icon, text, prompt }) => (
+            <button
+              key={text}
+              type="button"
+              onClick={() => onSuggestionClick(prompt)}
+              className="flex items-center gap-3 rounded-xl border border-border-medium bg-bg-hover px-4 py-3 text-left text-sm text-text-tertiary transition hover:bg-bg-active hover:text-text-primary"
+            >
+              <Icon className="h-4 w-4 shrink-0 text-text-muted" />
+              <span className="truncate">{text}</span>
+            </button>
+          ))}
+        </div>
       </div>
     </ConversationEmptyState>
   );
@@ -435,23 +503,26 @@ export function ChatWindow({
   const rangeExtractor = useMemo(() => buildHistoryRangeExtractor(draft?.status === 'streaming'), [draft?.status]);
   const rowVirtualizer = useVirtualizer<HTMLElement, HTMLDivElement>({
     count: messages.length,
-    estimateSize: (index) => estimateHistoryRowHeight(messages[index] ?? {
-      id: `placeholder-${index}`,
-      conversationId: conversationId ?? 'placeholder',
-      role: 'assistant',
-      content: '',
-      reasoning: null,
-      parts: [],
-      status: 'complete',
-      providerId: null,
-      modelId: null,
-      inputTokens: null,
-      outputTokens: null,
-      reasoningTokens: null,
-      latencyMs: null,
-      errorCode: null,
-      createdAt: new Date(0).toISOString()
-    }),
+    estimateSize: (index) =>
+      estimateHistoryRowHeight(
+        messages[index] ?? {
+          id: `placeholder-${index}`,
+          conversationId: conversationId ?? 'placeholder',
+          role: 'assistant',
+          content: '',
+          reasoning: null,
+          parts: [],
+          status: 'complete',
+          providerId: null,
+          modelId: null,
+          inputTokens: null,
+          outputTokens: null,
+          reasoningTokens: null,
+          latencyMs: null,
+          errorCode: null,
+          createdAt: new Date(0).toISOString(),
+        },
+      ),
     getScrollElement: () => scrollRef.current,
     getItemKey: (index) => messages[index]?.id ?? index,
     gap: HISTORY_GAP_PX,
@@ -559,11 +630,7 @@ export function ChatWindow({
           <p className="mt-2 text-sm text-text-tertiary">
             Credentials are stored in your OS keychain. Nothing leaves your machine.
           </p>
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            className="btn-primary mt-4 px-4 py-2 text-sm"
-          >
+          <button type="button" onClick={onOpenSettings} className="btn-primary mt-4 px-4 py-2 text-sm">
             Open Settings
           </button>
         </div>
@@ -573,8 +640,19 @@ export function ChatWindow({
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto" role="log" aria-live="polite">
-        <div ref={contentRef} className="mx-auto flex w-full max-w-content-max flex-col px-8 py-8 lg:px-10 xl:px-12 xl:py-10">
+      <div
+        ref={scrollRef}
+        className="scrollbar-auto-hide relative min-h-0 flex-1 overflow-y-auto"
+        role="log"
+        aria-live="polite"
+      >
+        <div
+          ref={contentRef}
+          className={cn(
+            'mx-auto flex w-full max-w-content-max flex-col px-6 py-7 lg:px-7 lg:py-8 xl:px-8 xl:py-9',
+            showSuggestions && 'min-h-full justify-center',
+          )}
+        >
           {hasOlder ? (
             <div className="mb-6 flex justify-center">
               <button
@@ -590,44 +668,44 @@ export function ChatWindow({
           ) : null}
 
           {showSuggestions ? (
-            <SuggestionsState onSuggestionClick={onSuggestionClick} />
+            <div className="flex flex-1 items-center justify-center">
+              <SuggestionsState onSuggestionClick={onSuggestionClick} />
+            </div>
+          ) : shouldRenderVirtualizedHistory ? (
+            <div className="relative w-full" style={{ height: rowVirtualizer.getTotalSize() }}>
+              {virtualItems.map((virtualItem) => {
+                const message = messages[virtualItem.index];
+                const isOutsideVisibleRange =
+                  visibleRange != null &&
+                  (virtualItem.index < visibleRange.startIndex || virtualItem.index > visibleRange.endIndex);
+
+                if (!message) {
+                  return null;
+                }
+
+                return (
+                  <div
+                    key={virtualItem.key}
+                    ref={rowVirtualizer.measureElement}
+                    data-index={virtualItem.index}
+                    className="absolute left-0 top-0 w-full"
+                    style={{ transform: `translateY(${virtualItem.start}px)` }}
+                  >
+                    <MessageRow message={message} deferRichContent={isOutsideVisibleRange} />
+                  </div>
+                );
+              })}
+            </div>
           ) : (
-            shouldRenderVirtualizedHistory ? (
-              <div className="relative w-full" style={{ height: rowVirtualizer.getTotalSize() }}>
-                {virtualItems.map((virtualItem) => {
-                  const message = messages[virtualItem.index];
-                  const isOutsideVisibleRange =
-                    visibleRange != null &&
-                    (virtualItem.index < visibleRange.startIndex || virtualItem.index > visibleRange.endIndex);
-
-                  if (!message) {
-                    return null;
-                  }
-
-                  return (
-                    <div
-                      key={virtualItem.key}
-                      ref={rowVirtualizer.measureElement}
-                      data-index={virtualItem.index}
-                      className="absolute left-0 top-0 w-full"
-                      style={{ transform: `translateY(${virtualItem.start}px)` }}
-                    >
-                      <MessageRow message={message} deferRichContent={isOutsideVisibleRange} />
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="space-y-8">
-                {messages.map((message) => (
-                  <MessageRow key={message.id} message={message} />
-                ))}
-              </div>
-            )
+            <div className="space-y-[26px]">
+              {messages.map((message) => (
+                <MessageRow key={message.id} message={message} />
+              ))}
+            </div>
           )}
 
           {draft ? (
-            <div className={messages.length > 0 || showSuggestions ? 'mt-8' : undefined}>
+            <div className={messages.length > 0 || showSuggestions ? 'mt-6' : undefined}>
               <StreamingRow
                 parts={draft.parts}
                 modelLabel={draft.modelId}

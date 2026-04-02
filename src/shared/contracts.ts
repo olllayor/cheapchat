@@ -31,6 +31,18 @@ export type ChatReasoningPart = {
   state?: ChatPartState;
 };
 
+export type ChatFilePart = {
+  id: string;
+  type: 'file';
+  mediaType: string;
+  url: string;
+  filename?: string;
+  sizeBytes?: number | null;
+  storageKey?: string | null;
+  previewWidth?: number | null;
+  previewHeight?: number | null;
+};
+
 export type ChatToolApproval = {
   id: string;
   approved?: boolean;
@@ -54,7 +66,7 @@ export type ChatToolPart = {
   approval?: ChatToolApproval;
 };
 
-export type ChatMessagePart = ChatTextPart | ChatReasoningPart | ChatToolPart;
+export type ChatMessagePart = ChatTextPart | ChatReasoningPart | ChatFilePart | ChatToolPart;
 
 export type ModelSummary = {
   id: string;
@@ -63,6 +75,7 @@ export type ModelSummary = {
   contextWindow: number | null;
   isFree: boolean;
   supportsVision: boolean;
+  supportsDocumentInput: boolean;
   supportsTools: boolean;
   archived: boolean;
   lastSyncedAt: string;
@@ -160,9 +173,25 @@ export type ConversationStats = {
   databaseSizeBytes: number;
 };
 
+export type ChatInputTextPart = {
+  type: 'text';
+  text: string;
+};
+
+export type ChatInputFilePart = {
+  type: 'file';
+  mediaType: string;
+  url: string;
+  filename?: string;
+  sizeBytes?: number | null;
+};
+
+export type ChatInputPart = ChatInputTextPart | ChatInputFilePart;
+
 export type ChatInputMessage = {
   role: MessageRole;
   content: string;
+  parts?: ChatInputPart[];
 };
 
 export type ChatStartRequest = {

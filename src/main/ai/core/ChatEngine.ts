@@ -6,8 +6,16 @@ import type {
   ChatMessagePart,
   ChatStartRequest,
   ChatStartResponse,
+  ChatInputPart,
   StreamEvent
 } from '../../../shared/contracts';
+import {
+  MAX_ATTACHMENT_COUNT,
+  MAX_TOTAL_ATTACHMENT_SIZE_BYTES,
+  getAttachmentCapabilityError,
+  getContentPreviewText,
+  sumAttachmentSize,
+} from '../../../shared/attachments';
 import {
   applyStreamEventToParts,
   buildFallbackMessageParts,
@@ -15,6 +23,7 @@ import {
   getReasoningContentFromParts,
   getTextContentFromParts
 } from '../../../shared/messageParts';
+import type { AttachmentStore } from '../../attachments/AttachmentStore';
 import { shouldPersistResponseMessages } from './persistResponseMessages';
 import type { ConversationsRepo } from '../../db/repositories/conversationsRepo';
 import type { ModelsRepo } from '../../db/repositories/modelsRepo';
@@ -46,14 +55,37 @@ export class ChatEngine {
     private readonly conversationsRepo: ConversationsRepo,
     private readonly modelsRepo: ModelsRepo,
     private readonly keychain: KeychainStore,
-    private readonly providers: ProviderRegistry
+    private readonly providers: ProviderRegistry,
+    private readonly attachmentStore: AttachmentStore
   ) {}
 
   async start(window: BrowserWindow, request: ChatStartRequest): Promise<ChatStartResponse> {
     const lastMessage = request.messages.at(-1);
+    const inputParts =
+      lastMessage?.parts?.length
+        ? lastMessage.parts
+        : lastMessage?.content.trim()
+          ? [{ type: 'text' as const, text: lastMessage.content }]
+          : [];
+    const previewContent = lastMessage ? getContentPreviewText(lastMessage.content, inputParts) : '';
+    const fileParts = inputParts.filter((part): part is Extract<ChatInputPart, { type: 'file' }> => part.type === 'file');
 
-    if (!lastMessage || lastMessage.role !== 'user' || !lastMessage.content.trim()) {
+    if (!lastMessage || lastMessage.role !== 'user' || (!previewContent && inputParts.length === 0)) {
       throw new Error('Chat requests must end with a user message.');
+    }
+
+    if (fileParts.length > MAX_ATTACHMENT_COUNT) {
+      throw new Error('Too many attachments were provided.');
+    }
+
+    if (sumAttachmentSize(fileParts) > MAX_TOTAL_ATTACHMENT_SIZE_BYTES) {
+      throw new Error('Attachments are too large to send together.');
+    }
+
+    const selectedModel = this.modelsRepo.getById(request.modelId);
+    const capabilityError = getAttachmentCapabilityError(selectedModel, fileParts);
+    if (capabilityError) {
+      throw new Error(capabilityError);
     }
 
     const requestId = randomUUID();
@@ -66,11 +98,13 @@ export class ChatEngine {
     window.once('closed', onWindowClosed);
     this.activeRequests.set(requestId, { controller, window, onWindowClosed });
 
+    const persistedParts = this.persistInputParts(request.conversationId, requestId, inputParts);
     this.conversationsRepo.setDefaults(request.conversationId, request.providerId, request.modelId);
     this.conversationsRepo.addMessage({
       conversationId: request.conversationId,
       role: 'user',
-      content: lastMessage.content,
+      content: previewContent,
+      parts: persistedParts,
       status: 'complete',
       providerId: request.providerId,
       modelId: request.modelId
@@ -81,6 +115,38 @@ export class ChatEngine {
     });
 
     return { requestId };
+  }
+
+  private persistInputParts(conversationId: string, requestId: string, parts: ChatInputPart[]): ChatMessagePart[] {
+    const persistedParts: ChatMessagePart[] = [];
+    let textIndex = 0;
+    let fileIndex = 0;
+
+    for (const part of parts) {
+      if (part.type === 'text') {
+        if (!part.text.trim()) {
+          continue;
+        }
+
+        persistedParts.push({
+          id: `${requestId}-text-${textIndex}`,
+          type: 'text',
+          text: part.text,
+          state: 'done',
+        });
+        textIndex += 1;
+        continue;
+      }
+
+      const storedAttachment = this.attachmentStore.persistAttachment(conversationId, part);
+      persistedParts.push({
+        ...storedAttachment,
+        id: `${requestId}-file-${fileIndex}`,
+      });
+      fileIndex += 1;
+    }
+
+    return persistedParts;
   }
 
   abort(requestId: string) {

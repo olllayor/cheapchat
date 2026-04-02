@@ -6,6 +6,7 @@ import { ChatEngine } from './ai/core/ChatEngine';
 import { ModelRegistry } from './ai/core/ModelRegistry';
 import type { ProviderAdapter } from './ai/core/ProviderAdapter';
 import type { ProviderRegistry } from './ai/core/providerRegistry';
+import { AttachmentStore } from './attachments/AttachmentStore';
 import { GlmProvider } from './ai/providers/glm';
 import { OpenRouterProvider } from './ai/providers/openrouter';
 import { createWindow } from './bootstrap/createWindow';
@@ -65,13 +66,20 @@ async function resolveDatabasePath() {
   return databasePath;
 }
 
+async function resolveAttachmentDirectory() {
+  const attachmentsPath = join(app.getPath('userData'), 'attachments');
+  await mkdir(attachmentsPath, { recursive: true });
+  return attachmentsPath;
+}
+
 app.whenReady().then(async () => {
   const icon = getDockIcon();
   if (icon && process.platform === 'darwin' && app.dock) {
     app.dock.setIcon(icon);
   }
 
-  const database = createAppDatabase(await resolveDatabasePath());
+  const attachmentStore = new AttachmentStore(await resolveAttachmentDirectory());
+  const database = createAppDatabase(await resolveDatabasePath(), attachmentStore);
   const keychain = new KeychainStore();
   const openRouter = new OpenRouterProvider();
   const glm = new GlmProvider();
@@ -86,7 +94,7 @@ app.whenReady().then(async () => {
   }
 
   const modelRegistry = new ModelRegistry(database.models, database.settings, keychain, providers);
-  const chatEngine = new ChatEngine(database.conversations, database.models, keychain, providers);
+  const chatEngine = new ChatEngine(database.conversations, database.models, keychain, providers, attachmentStore);
 
   registerSettingsIpc({
     settingsRepo: database.settings,

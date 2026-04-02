@@ -1,6 +1,6 @@
 @import '@fontsource-variable/geist';
 @import '@fontsource-variable/geist-mono';
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* ============================================
    LAYER 1: Semantic CSS Custom Properties
@@ -21,15 +21,15 @@
   --bg-subtle: rgba(255, 255, 255, 0.03);
   --bg-ghost: rgba(255, 255, 255, 0.04);
   --bg-hover: rgba(255, 255, 255, 0.05);
-  --bg-active: rgba(255, 255, 255, 0.10);
+  --bg-active: rgba(255, 255, 255, 0.1);
   --bg-button: #ffffff;
-  --bg-button-hover: rgba(255, 255, 255, 0.90);
+  --bg-button-hover: rgba(255, 255, 255, 0.9);
 
   /* Borders */
   --border-subtle: rgba(255, 255, 255, 0.06);
   --border-default: rgba(255, 255, 255, 0.08);
-  --border-medium: rgba(255, 255, 255, 0.10);
-  --border-strong: rgba(255, 255, 255, 0.20);
+  --border-medium: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.2);
 
   /* Text - 6-tier scale */
   --text-primary: #ffffff;
@@ -42,19 +42,19 @@
   /* Semantic - success */
   --success: #34d399;
   --success-bg: rgba(52, 211, 153, 0.15);
-  --success-border: rgba(52, 211, 153, 0.20);
+  --success-border: rgba(52, 211, 153, 0.2);
   --success-text: #a7f3d0;
 
   /* Semantic - warning */
   --warning: #fbbf24;
   --warning-bg: rgba(245, 158, 11, 0.05);
-  --warning-border: rgba(245, 158, 11, 0.20);
+  --warning-border: rgba(245, 158, 11, 0.2);
   --warning-text: #fde68a;
 
   /* Semantic - error */
   --error: #fb7185;
-  --error-bg: rgba(244, 63, 94, 0.10);
-  --error-border: rgba(244, 63, 94, 0.20);
+  --error-bg: rgba(244, 63, 94, 0.1);
+  --error-border: rgba(244, 63, 94, 0.2);
   --error-text: #fecdd3;
 
   /* Toasts */
@@ -66,17 +66,19 @@
   --toast-close-hover: rgba(232, 238, 250, 0.92);
 
   /* UI elements */
-  --overlay: rgba(0, 0, 0, 0.40);
-  --scrollbar: rgba(255, 255, 255, 0.10);
+  --overlay: rgba(0, 0, 0, 0.4);
+  --scrollbar: rgba(255, 255, 255, 0.1);
   --scrollbar-hover: rgba(255, 255, 255, 0.18);
 
   /* Typography */
-  --default-font-family: ui-sans-serif, -apple-system, system-ui, Segoe UI, Helvetica, Apple Color Emoji, Arial, sans-serif, Segoe UI Emoji, Segoe UI Symbol;
+  --default-font-family:
+    ui-sans-serif, -apple-system, system-ui, Segoe UI, Helvetica, Apple Color Emoji, Arial, sans-serif, Segoe UI Emoji,
+    Segoe UI Symbol;
   --font-code-sans: 'Geist Variable', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-code-mono: 'Geist Mono Variable', ui-monospace, 'SF Mono', 'Consolas', monospace;
 
   /* Layout */
-  --content-max: clamp(820px, 74vw, 1120px);
+  --content-max: clamp(680px, 102vw, 860px);
   --sidebar-expanded: 284px;
   --sidebar-collapsed: 68px;
 
@@ -109,7 +111,7 @@
    Uncomment and adjust values when ready.
    ============================================ */
 
-[data-theme="light"] {
+[data-theme='light'] {
   color-scheme: light;
 
   --bg-base: #ffffff;
@@ -123,12 +125,12 @@
   --bg-hover: rgba(0, 0, 0, 0.04);
   --bg-active: rgba(0, 0, 0, 0.06);
   --bg-button: #111827;
-  --bg-button-hover: rgba(17, 24, 39, 0.90);
+  --bg-button-hover: rgba(17, 24, 39, 0.9);
 
   --border-subtle: rgba(0, 0, 0, 0.06);
   --border-default: rgba(0, 0, 0, 0.08);
   --border-medium: rgba(0, 0, 0, 0.12);
-  --border-strong: rgba(0, 0, 0, 0.20);
+  --border-strong: rgba(0, 0, 0, 0.2);
 
   --text-primary: #111827;
   --text-secondary: #4b5563;
@@ -138,13 +140,13 @@
   --text-inverse: #ffffff;
 
   --success: #059669;
-  --success-bg: rgba(5, 150, 105, 0.10);
-  --success-border: rgba(5, 150, 105, 0.20);
+  --success-bg: rgba(5, 150, 105, 0.1);
+  --success-border: rgba(5, 150, 105, 0.2);
   --success-text: #047857;
 
   --warning: #d97706;
   --warning-bg: rgba(217, 119, 6, 0.08);
-  --warning-border: rgba(217, 119, 6, 0.20);
+  --warning-border: rgba(217, 119, 6, 0.2);
   --warning-text: #b45309;
 
   --error: #e11d48;
@@ -159,7 +161,7 @@
   --toast-close: rgba(56, 80, 127, 0.48);
   --toast-close-hover: rgba(33, 50, 84, 0.9);
 
-  --overlay: rgba(0, 0, 0, 0.30);
+  --overlay: rgba(0, 0, 0, 0.3);
   --scrollbar: rgba(0, 0, 0, 0.15);
   --scrollbar-hover: rgba(0, 0, 0, 0.25);
 
@@ -283,8 +285,7 @@ body {
   font-family: var(--default-font-family);
   background:
     radial-gradient(circle at top, rgba(79, 102, 255, 0.09), transparent 30%),
-    radial-gradient(circle at 78% 16%, rgba(255, 255, 255, 0.03), transparent 24%),
-    var(--bg-base);
+    radial-gradient(circle at 78% 16%, rgba(255, 255, 255, 0.03), transparent 24%), var(--bg-base);
   color: var(--text-primary);
 }
 
@@ -364,6 +365,42 @@ select {
 }
 
 *::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-hover);
+}
+
+.scrollbar-auto-hide {
+  scrollbar-width: none;
+}
+
+.scrollbar-auto-hide::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.scrollbar-auto-hide:hover,
+.scrollbar-auto-hide:focus-within {
+  scrollbar-width: thin;
+}
+
+.scrollbar-auto-hide:hover::-webkit-scrollbar,
+.scrollbar-auto-hide:focus-within::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-auto-hide:hover::-webkit-scrollbar-track,
+.scrollbar-auto-hide:focus-within::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-auto-hide:hover::-webkit-scrollbar-thumb,
+.scrollbar-auto-hide:focus-within::-webkit-scrollbar-thumb {
+  border-radius: var(--radius-full);
+  background: var(--scrollbar);
+}
+
+.scrollbar-auto-hide:hover::-webkit-scrollbar-thumb:hover,
+.scrollbar-auto-hide:focus-within::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-hover);
 }
 

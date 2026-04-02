@@ -6,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 
 import type { SqliteDatabase } from '../src/main/db/client.js';
+import { AttachmentStore } from '../src/main/attachments/AttachmentStore.js';
 import { ConversationsRepo } from '../src/main/db/repositories/conversationsRepo.js';
 import { applySchema } from '../src/main/db/schema.js';
 import { decodeConversationPageCursor } from '../src/shared/conversationPaging.js';
@@ -125,4 +126,70 @@ test('ConversationsRepo returns summary previews, stable pages, and stats', (t) 
   assert.equal(stats.storedConversationCount, 1);
   assert.equal(stats.storedMessageCount, 5);
   assert.ok(stats.databaseSizeBytes > 0);
+});
+
+test('ConversationsRepo rebuilds attachment-backed user history from stored files', (t) => {
+  const tempDir = mkdtempSync(join(tmpdir(), 'atlas-conversations-attachments-'));
+  const raw = new DatabaseSync(join(tempDir, 'atlas.db'));
+  const database = {
+    exec: (sql: string) => raw.exec(sql),
+    prepare: (sql: string) => raw.prepare(sql),
+    transaction:
+      <TArgs extends unknown[], TResult>(callback: (...args: TArgs) => TResult) =>
+      (...args: TArgs) => {
+        raw.exec('BEGIN');
+        try {
+          const result = callback(...args);
+          raw.exec('COMMIT');
+          return result;
+        } catch (error) {
+          raw.exec('ROLLBACK');
+          throw error;
+        }
+      },
+  } as unknown as SqliteDatabase;
+  applySchema(database);
+  const attachmentStore = new AttachmentStore(join(tempDir, 'attachments'));
+  const conversations = new ConversationsRepo(database, attachmentStore);
+
+  t.after(() => {
+    raw.close();
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  const conversation = conversations.create();
+  const storedAttachment = attachmentStore.persistAttachment(conversation.id, {
+    type: 'file',
+    filename: 'note.txt',
+    mediaType: 'text/plain',
+    sizeBytes: 5,
+    url: 'data:text/plain;base64,aGVsbG8=',
+  });
+
+  conversations.addMessage({
+    conversationId: conversation.id,
+    role: 'user',
+    content: 'Attachment',
+    parts: [storedAttachment],
+    status: 'complete',
+    providerId: 'openrouter',
+    modelId: 'openrouter/test-model',
+    createdAt: createTimestamp(0),
+  });
+
+  const history = conversations.getModelHistory(conversation.id);
+  assert.equal(history.length, 1);
+  assert.equal(history[0]?.role, 'user');
+  assert.ok(Array.isArray(history[0]?.content));
+
+  const [filePart] = history[0]!.content as Array<{
+    type: 'file';
+    filename?: string;
+    mediaType: string;
+    data: Uint8Array;
+  }>;
+  assert.equal(filePart?.type, 'file');
+  assert.equal(filePart?.filename, 'note.txt');
+  assert.equal(filePart?.mediaType, 'text/plain');
+  assert.equal(new TextDecoder().decode(filePart?.data), 'hello');
 });

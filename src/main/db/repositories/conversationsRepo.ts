@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { ModelMessage } from 'ai';
 
+import type { AttachmentStore } from '../../attachments/AttachmentStore';
 import type {
   ChatMessage,
   ChatMessagePart,
@@ -123,6 +124,59 @@ function mapMessage(row: MessageRow): ChatMessage {
   };
 }
 
+function buildModelMessageContent(
+  parts: ChatMessagePart[],
+  attachmentStore: Pick<AttachmentStore, 'readAttachmentData'>,
+) {
+  const content: Array<
+    | {
+        type: 'text';
+        text: string;
+      }
+    | {
+        type: 'file';
+        data: Uint8Array | string;
+        filename: string | undefined;
+        mediaType: string;
+      }
+  > = [];
+
+  for (const part of parts) {
+    if (part.type === 'text') {
+      content.push({
+        type: 'text',
+        text: part.text,
+      });
+      continue;
+    }
+
+    if (part.type !== 'file') {
+      continue;
+    }
+
+    const storedData = part.storageKey ? attachmentStore.readAttachmentData(part.storageKey) : null;
+    const data = storedData ?? (part.url.startsWith('data:') ? part.url : null);
+
+    if (!data) {
+      continue;
+    }
+
+    content.push({
+      type: 'file',
+      data,
+      filename: part.filename,
+      mediaType: part.mediaType,
+    });
+  }
+
+  if (content.length === 0) {
+    const text = getTextContentFromParts(parts);
+    return text;
+  }
+
+  return content;
+}
+
 function mapConversationSummary(row: ConversationSummaryRow): ConversationSummary {
   return {
     id: row.id,
@@ -138,8 +192,22 @@ function mapConversationSummary(row: ConversationSummaryRow): ConversationSummar
   };
 }
 
+const NOOP_ATTACHMENT_STORE: Pick<
+  AttachmentStore,
+  'deleteConversationAttachments' | 'readAttachmentData'
+> = {
+  deleteConversationAttachments: () => undefined,
+  readAttachmentData: () => null,
+};
+
 export class ConversationsRepo {
-  constructor(private readonly db: SqliteDatabase) {}
+  constructor(
+    private readonly db: SqliteDatabase,
+    private readonly attachmentStore: Pick<
+      AttachmentStore,
+      'deleteConversationAttachments' | 'readAttachmentData'
+    > = NOOP_ATTACHMENT_STORE,
+  ) {}
 
   list() {
     const rows = this.db
@@ -237,6 +305,8 @@ export class ConversationsRepo {
         `
       )
       .run({ conversationId });
+
+    this.attachmentStore.deleteConversationAttachments(conversationId);
   }
 
   get(conversationId: string): ConversationDetail {
@@ -438,11 +508,15 @@ export class ConversationsRepo {
 
   getModelHistory(conversationId: string) {
     const rows = this.db
-      .prepare<{ conversationId: string }, Pick<MessageRow, 'role' | 'content' | 'response_messages_json'>>(
+      .prepare<
+        { conversationId: string },
+        Pick<MessageRow, 'role' | 'content' | 'parts_json' | 'response_messages_json'>
+      >(
         `
           SELECT
             role,
             content,
+            parts_json,
             response_messages_json
           FROM messages
           WHERE conversation_id = @conversationId
@@ -455,9 +529,18 @@ export class ConversationsRepo {
 
     for (const row of rows) {
       const responseMessages = parseJson<ModelMessage[]>(row.response_messages_json);
+      const parts = parseJson<ChatMessagePart[]>(row.parts_json);
 
       if (row.role === 'assistant' && responseMessages?.length) {
         history.push(...responseMessages);
+        continue;
+      }
+
+      if (row.role === 'user' && parts?.length) {
+        history.push({
+          role: row.role,
+          content: buildModelMessageContent(parts, this.attachmentStore),
+        });
         continue;
       }
 
