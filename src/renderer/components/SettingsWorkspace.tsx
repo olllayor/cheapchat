@@ -1,5 +1,4 @@
 import {
-  ActivityLogIcon,
   ArrowLeftIcon,
   ChevronRightIcon,
   DesktopIcon,
@@ -7,14 +6,27 @@ import {
   MoonIcon,
   ReloadIcon,
   SunIcon,
+  TimerIcon,
   UpdateIcon,
 } from '@radix-ui/react-icons';
-import type { CSSProperties, PropsWithChildren } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type {
+  ChangeEvent,
+  CSSProperties,
+  FocusEvent,
+  KeyboardEvent as ReactKeyboardEvent,
+  PropsWithChildren
+} from 'react';
 import { costFromUsage } from 'tokenlens';
 
 import type {
   AppUpdateSnapshot,
-  ConversationDetail,
+  ConversationPage,
+  ConversationStats,
+  DiagnosticsSnapshot,
+  FontFamilyOverride,
+  KeybindingCommand,
+  KeybindingRule,
   ProviderId,
   SettingsSection,
   SettingsSummary,
@@ -22,24 +34,47 @@ import type {
   UsageProviderSummary,
   UsageSummary,
 } from '../../shared/contracts';
+import {
+  CODE_FONT_SIZE_MAX,
+  CODE_FONT_SIZE_MIN,
+  DEFAULT_SETTINGS_APPEARANCE,
+  UI_FONT_SIZE_MAX,
+  UI_FONT_SIZE_MIN,
+} from '../../shared/contracts';
+import { getDefaultKeybindingRules } from '../../shared/keybindings';
+import { PROVIDER_METADATA } from '../../shared/providerMetadata';
+import { APP_COMMAND_DEFINITIONS, APP_COMMANDS_BY_ID } from '../lib/keybindingCommands';
+import type { ShortcutPlatform } from '../lib/keybindings';
+import {
+  createShortcutFromKeyboardEvent,
+  formatShortcutLabel,
+  resolveKeybindingConflicts,
+  serializeShortcut,
+} from '../lib/keybindings';
 
 type SettingsWorkspaceProps = {
   settings: SettingsSummary | null;
   updateState: AppUpdateSnapshot;
-  conversationDetails: Record<string, ConversationDetail>;
-  notice: { tone: 'error' | 'success' | 'info'; message: string } | null;
+  usageSummary: UsageSummary;
+  activeCredentialProviderId: ProviderId;
   keyDraft: string;
   isSaving: boolean;
   isValidating: boolean;
   isRefreshingModels: boolean;
   activeSection: SettingsSection;
+  shortcutPlatform: ShortcutPlatform;
   onBack: () => void;
   onNavigate: (section: SettingsSection) => void;
-  onDismissNotice: () => void;
+  onSelectProvider: (providerId: ProviderId) => void;
   onKeyDraftChange: (value: string) => void;
   onSaveKey: () => void;
   onValidateKey: () => void;
   onThemeModeChange: (mode: ThemeMode) => void;
+  onUiFontSizeChange: (value: number) => void;
+  onCodeFontSizeChange: (value: number) => void;
+  onUiFontFamilyChange: (value: FontFamilyOverride) => void;
+  onCodeFontFamilyChange: (value: FontFamilyOverride) => void;
+  onUpdateKeybindings: (rules: KeybindingRule[]) => void;
   onToggleFreeModels: (value: boolean) => void;
   onUpdateAction: () => void;
   onRefreshModels: () => void;
@@ -59,7 +94,8 @@ type FutureNavItem = {
 const activeNavItems: NavItem[] = [
   { key: 'general', label: 'General', icon: GearIcon },
   { key: 'appearance', label: 'Appearance', icon: DesktopIcon },
-  { key: 'usage', label: 'Usage', icon: ActivityLogIcon },
+  { key: 'keyboard', label: 'Keyboard', icon: GearIcon },
+  { key: 'usage', label: 'Usage', icon: TimerIcon },
 ];
 
 const futureNavItems: FutureNavItem[] = [
@@ -75,26 +111,30 @@ const futureNavItems: FutureNavItem[] = [
 export function SettingsWorkspace({
   settings,
   updateState,
-  conversationDetails,
-  notice,
+  usageSummary,
+  activeCredentialProviderId,
   keyDraft,
   isSaving,
   isValidating,
   isRefreshingModels,
   activeSection,
+  shortcutPlatform,
   onBack,
   onNavigate,
-  onDismissNotice,
+  onSelectProvider,
   onKeyDraftChange,
   onSaveKey,
   onValidateKey,
   onThemeModeChange,
+  onUiFontSizeChange,
+  onCodeFontSizeChange,
+  onUiFontFamilyChange,
+  onCodeFontFamilyChange,
+  onUpdateKeybindings,
   onToggleFreeModels,
   onUpdateAction,
   onRefreshModels,
 }: SettingsWorkspaceProps) {
-  const usageSummary = buildUsageSummary(settings, conversationDetails);
-
   return (
     <div className="flex h-screen overflow-hidden bg-bg-base text-text-primary">
       <aside className="relative flex w-[292px] shrink-0 flex-col border-r border-border-subtle bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0)_15%),var(--bg-panel)]">
@@ -167,23 +207,6 @@ export function SettingsWorkspace({
           style={{ WebkitAppRegion: 'drag' } as CSSProperties}
         />
 
-        {notice ? (
-          <div
-            className={`relative flex items-center justify-between border-b px-4 py-2 text-sm ${
-              notice.tone === 'error'
-                ? 'border-error-border bg-error-bg text-error-text'
-                : notice.tone === 'success'
-                  ? 'border-success-border bg-success-bg text-success-text'
-                  : 'border-warning-border bg-warning-bg text-warning-text'
-            }`}
-          >
-            <span>{notice.message}</span>
-            <button onClick={onDismissNotice} className="ml-3 text-current opacity-70 transition hover:opacity-100">
-              ✕
-            </button>
-          </div>
-        ) : null}
-
         <div className="relative h-[calc(100vh-52px)] overflow-y-auto">
           <div className="mx-auto w-full max-w-[760px] px-10 pb-16 pt-8">
             <h1 className="text-[20px] font-semibold tracking-[-0.025em] text-text-primary">
@@ -195,10 +218,12 @@ export function SettingsWorkspace({
                 <GeneralPage
                   settings={settings}
                   updateState={updateState}
+                  activeCredentialProviderId={activeCredentialProviderId}
                   keyDraft={keyDraft}
                   isSaving={isSaving}
                   isValidating={isValidating}
                   isRefreshingModels={isRefreshingModels}
+                  onSelectProvider={onSelectProvider}
                   onKeyDraftChange={onKeyDraftChange}
                   onSaveKey={onSaveKey}
                   onValidateKey={onValidateKey}
@@ -209,7 +234,22 @@ export function SettingsWorkspace({
               ) : null}
 
               {activeSection === 'appearance' ? (
-                <AppearancePage settings={settings} onThemeModeChange={onThemeModeChange} />
+                <AppearancePage
+                  settings={settings}
+                  onThemeModeChange={onThemeModeChange}
+                  onUiFontSizeChange={onUiFontSizeChange}
+                  onCodeFontSizeChange={onCodeFontSizeChange}
+                  onUiFontFamilyChange={onUiFontFamilyChange}
+                  onCodeFontFamilyChange={onCodeFontFamilyChange}
+                />
+              ) : null}
+
+              {activeSection === 'keyboard' ? (
+                <KeyboardPage
+                  keybindings={settings?.keyboard.keybindings ?? getDefaultKeybindingRules()}
+                  platform={shortcutPlatform}
+                  onUpdateKeybindings={onUpdateKeybindings}
+                />
               ) : null}
 
               {activeSection === 'usage' ? <UsagePage usageSummary={usageSummary} /> : null}
@@ -226,6 +266,10 @@ function sectionTitle(section: SettingsSection) {
     return 'Appearance';
   }
 
+  if (section === 'keyboard') {
+    return 'Keyboard';
+  }
+
   if (section === 'usage') {
     return 'Usage';
   }
@@ -236,10 +280,12 @@ function sectionTitle(section: SettingsSection) {
 function GeneralPage({
   settings,
   updateState,
+  activeCredentialProviderId,
   keyDraft,
   isSaving,
   isValidating,
   isRefreshingModels,
+  onSelectProvider,
   onKeyDraftChange,
   onSaveKey,
   onValidateKey,
@@ -249,10 +295,12 @@ function GeneralPage({
 }: {
   settings: SettingsSummary | null;
   updateState: AppUpdateSnapshot;
+  activeCredentialProviderId: ProviderId;
   keyDraft: string;
   isSaving: boolean;
   isValidating: boolean;
   isRefreshingModels: boolean;
+  onSelectProvider: (providerId: ProviderId) => void;
   onKeyDraftChange: (value: string) => void;
   onSaveKey: () => void;
   onValidateKey: () => void;
@@ -260,8 +308,9 @@ function GeneralPage({
   onUpdateAction: () => void;
   onRefreshModels: () => void;
 }) {
-  const openRouter = settings?.providers.find((provider) => provider.providerId === 'openrouter') ?? null;
-  const savedStateLabel = openRouter?.hasSecret ? 'Saved' : 'Missing';
+  const provider = settings?.providers.find((entry) => entry.providerId === activeCredentialProviderId) ?? null;
+  const metadata = PROVIDER_METADATA[activeCredentialProviderId];
+  const savedStateLabel = provider?.hasSecret ? 'Saved' : 'Missing';
   const lastSyncedLabel = formatTimestamp(settings?.modelCatalogLastSyncedAt);
   const updateLabel = getUpdateLabel(updateState);
 
@@ -269,21 +318,23 @@ function GeneralPage({
     <>
       <SettingsGroup title="Provider access">
         <SettingsStackedRow
-          title="OpenRouter API key"
+          title={metadata.keyLabel}
           description="Stored in your macOS keychain. Paste a new key to replace the current one."
         >
+          <ProviderPicker current={activeCredentialProviderId} onChange={onSelectProvider} />
+
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <StatusPill tone={openRouter?.hasSecret ? 'success' : 'muted'}>{savedStateLabel}</StatusPill>
+            <StatusPill tone={provider?.hasSecret ? 'success' : 'muted'}>{savedStateLabel}</StatusPill>
             <StatusPill
               tone={
-                openRouter?.status === 'valid'
+                provider?.status === 'valid'
                   ? 'success'
-                  : openRouter?.status === 'invalid'
+                  : provider?.status === 'invalid'
                     ? 'warning'
                     : 'muted'
               }
             >
-              {openRouter?.status ?? 'unknown'}
+              {provider?.status ?? 'unknown'}
             </StatusPill>
           </div>
 
@@ -292,7 +343,11 @@ function GeneralPage({
               type="password"
               value={keyDraft}
               onChange={(event) => onKeyDraftChange(event.target.value)}
-              placeholder={openRouter?.hasSecret ? 'A key is already saved. Paste to replace it.' : 'sk-or-v1-...'}
+              placeholder={
+                provider?.hasSecret
+                  ? 'A key is already saved. Paste to replace it.'
+                  : metadata.keyPlaceholder
+              }
               className="h-10 min-w-0 flex-1 rounded-xl border border-border-default bg-bg-subtle px-3 text-[13px] text-text-primary outline-none placeholder:text-text-muted focus:border-border-strong"
             />
             <div className="flex gap-2">
@@ -303,6 +358,18 @@ function GeneralPage({
                 {isValidating ? 'Validating…' : 'Validate'}
               </ActionButton>
             </div>
+          </div>
+
+          <div className="mt-3 text-[12px] text-text-tertiary">
+            Get one at{' '}
+            <a
+              href={metadata.keyLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-text-primary"
+            >
+              {metadata.keyLinkLabel}
+            </a>
           </div>
         </SettingsStackedRow>
 
@@ -354,11 +421,20 @@ function GeneralPage({
 function AppearancePage({
   settings,
   onThemeModeChange,
+  onUiFontSizeChange,
+  onCodeFontSizeChange,
+  onUiFontFamilyChange,
+  onCodeFontFamilyChange,
 }: {
   settings: SettingsSummary | null;
   onThemeModeChange: (mode: ThemeMode) => void;
+  onUiFontSizeChange: (value: number) => void;
+  onCodeFontSizeChange: (value: number) => void;
+  onUiFontFamilyChange: (value: FontFamilyOverride) => void;
+  onCodeFontFamilyChange: (value: FontFamilyOverride) => void;
 }) {
-  const themeMode = settings?.appearance.themeMode ?? 'dark';
+  const appearance = settings?.appearance ?? DEFAULT_SETTINGS_APPEARANCE;
+  const themeMode = appearance.themeMode;
 
   return (
     <>
@@ -371,16 +447,174 @@ function AppearancePage({
         </SettingsStackedRow>
       </SettingsGroup>
 
+      <SettingsGroup title="Typography">
+        <SettingsRow title="UI font size" description="Font size for the Atlas user interface.">
+          <NumberStepper
+            value={appearance.uiFontSize}
+            min={UI_FONT_SIZE_MIN}
+            max={UI_FONT_SIZE_MAX}
+            defaultValue={DEFAULT_SETTINGS_APPEARANCE.uiFontSize}
+            onChange={onUiFontSizeChange}
+          />
+        </SettingsRow>
+        <SettingsRow title="Code font size" description="Font size for code blocks, tool payloads, and diffs.">
+          <NumberStepper
+            value={appearance.codeFontSize}
+            min={CODE_FONT_SIZE_MIN}
+            max={CODE_FONT_SIZE_MAX}
+            defaultValue={DEFAULT_SETTINGS_APPEARANCE.codeFontSize}
+            onChange={onCodeFontSizeChange}
+          />
+        </SettingsRow>
+        <SettingsRow title="UI font family" description="Override the Atlas interface typeface.">
+          <FontFamilyField
+            value={appearance.uiFontFamily}
+            placeholder="System font"
+            onCommit={onUiFontFamilyChange}
+          />
+        </SettingsRow>
+        <SettingsRow title="Code font family" description="Override the typeface used for code surfaces.">
+          <FontFamilyField
+            value={appearance.codeFontFamily}
+            placeholder="System monospace"
+            onCommit={onCodeFontFamilyChange}
+          />
+        </SettingsRow>
+      </SettingsGroup>
+
       <SettingsGroup title="Coming soon">
         <DisabledRow
           title="Accent controls"
           description="Accent color and contrast tuning will be added after the base theme system settles."
         />
-        <DisabledRow
-          title="Typography"
-          description="UI and code font controls will land here when broader appearance settings ship."
-        />
       </SettingsGroup>
+    </>
+  );
+}
+
+function KeyboardPage({
+  keybindings,
+  platform,
+  onUpdateKeybindings,
+}: {
+  keybindings: KeybindingRule[];
+  platform: ShortcutPlatform;
+  onUpdateKeybindings: (rules: KeybindingRule[]) => void;
+}) {
+  const [capturingCommand, setCapturingCommand] = useState<KeybindingCommand | null>(null);
+  const groupedCommands = useMemo(() => {
+    const next = new Map<string, typeof APP_COMMAND_DEFINITIONS>();
+
+    for (const definition of APP_COMMAND_DEFINITIONS) {
+      if (!next.has(definition.section)) {
+        next.set(definition.section, []);
+      }
+
+      next.get(definition.section)!.push(definition);
+    }
+
+    return Array.from(next.entries());
+  }, []);
+
+  const updateCommandShortcut = (command: KeybindingCommand, shortcut: KeybindingRule['shortcut']) => {
+    onUpdateKeybindings(
+      keybindings.map((rule) => (rule.command === command ? { ...rule, shortcut } : rule)),
+    );
+  };
+
+  const resetCommandShortcut = (command: KeybindingCommand) => {
+    const defaultRule = getDefaultKeybindingRules().find((rule) => rule.command === command);
+    if (!defaultRule) {
+      return;
+    }
+
+    updateCommandShortcut(command, defaultRule.shortcut);
+  };
+
+  const resetAllShortcuts = () => {
+    onUpdateKeybindings(getDefaultKeybindingRules());
+  };
+
+  const handleCapture = (command: KeybindingCommand) => (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (event.key === 'Escape') {
+      setCapturingCommand(null);
+      return;
+    }
+
+    const shortcut = createShortcutFromKeyboardEvent(event.nativeEvent, platform);
+    if (!shortcut) {
+      return;
+    }
+
+    updateCommandShortcut(command, shortcut);
+    setCapturingCommand(null);
+  };
+
+  return (
+    <>
+      <SettingsGroup title="Keyboard shortcuts">
+        <SettingsRow
+          title="Customize Atlas shortcuts"
+          description="Shortcuts are stored locally on this device. Duplicate bindings are allowed and the last matching rule wins."
+        >
+          <ActionButton onClick={resetAllShortcuts}>Reset all to defaults</ActionButton>
+        </SettingsRow>
+      </SettingsGroup>
+
+      {groupedCommands.map(([section, definitions]) => (
+        <SettingsGroup key={section} title={section}>
+          {definitions.map((definition) => {
+            const rule = keybindings.find((entry) => entry.command === definition.command);
+            const shortcut = rule?.shortcut ?? getDefaultKeybindingRules().find((entry) => entry.command === definition.command)?.shortcut;
+            const conflicts = resolveKeybindingConflicts(keybindings, definition.command);
+            const shortcutLabel = shortcut ? formatShortcutLabel(shortcut, platform) : 'Not set';
+            const isCapturing = capturingCommand === definition.command;
+
+            return (
+              <div
+                className="border-t border-border-subtle px-4 py-4 first:border-t-0"
+                key={definition.command}
+              >
+                <div className="flex items-start justify-between gap-5">
+                  <div className="min-w-0">
+                    <div className="text-[14px] font-medium text-text-primary">{definition.title}</div>
+                    <div className="mt-1 text-[12.5px] leading-5 text-text-tertiary">{definition.description}</div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCapturingCommand((current) => (current === definition.command ? null : definition.command))
+                      }
+                      onKeyDown={isCapturing ? handleCapture(definition.command) : undefined}
+                      className={`inline-flex h-9 min-w-[128px] items-center justify-center rounded-xl border px-3 font-mono text-[12px] transition ${
+                        isCapturing
+                          ? 'border-white/20 bg-white/[0.06] text-white'
+                          : 'border-border-default bg-bg-subtle text-text-primary hover:bg-bg-hover'
+                      }`}
+                    >
+                      {isCapturing ? 'Press keys…' : shortcutLabel}
+                    </button>
+                    <ActionButton onClick={() => resetCommandShortcut(definition.command)}>Reset</ActionButton>
+                  </div>
+                </div>
+                {conflicts.length > 0 ? (
+                  <div className="mt-3 text-[11.5px] text-[#ffbd8a]">
+                    Also bound to{' '}
+                    {conflicts.map((command) => APP_COMMANDS_BY_ID[command].title).join(', ')}. The last matching rule wins.
+                  </div>
+                ) : null}
+                {shortcut ? (
+                  <div className="mt-2 text-[11px] font-mono text-text-faint/70">{serializeShortcut(shortcut)}</div>
+                ) : null}
+              </div>
+            );
+          })}
+        </SettingsGroup>
+      ))}
     </>
   );
 }
@@ -431,6 +665,34 @@ function UsagePage({ usageSummary }: { usageSummary: UsageSummary }) {
           description={`${usageSummary.local.loadedMessageCount} messages currently in memory`}
         >
           <ValueBadge>{usageSummary.local.loadedConversationCount}</ValueBadge>
+        </SettingsRow>
+
+        <SettingsRow
+          title="Stored history"
+          description={`${formatCompactNumber(usageSummary.local.storedMessageCount)} messages persisted across ${formatCompactNumber(usageSummary.local.storedConversationCount)} conversations`}
+        >
+          <ValueBadge>{formatCompactNumber(usageSummary.local.storedConversationCount)}</ValueBadge>
+        </SettingsRow>
+
+        <SettingsRow
+          title="Database size"
+          description="SQLite conversation store on disk."
+        >
+          <ValueBadge>{formatBytes(usageSummary.local.databaseSizeBytes)}</ValueBadge>
+        </SettingsRow>
+
+        <SettingsRow
+          title="Renderer heap"
+          description="Current JS heap used by the renderer process."
+        >
+          <ValueBadge>{usageSummary.local.rendererHeapBytes == null ? 'Unavailable' : formatBytes(usageSummary.local.rendererHeapBytes)}</ValueBadge>
+        </SettingsRow>
+
+        <SettingsRow
+          title="Main-process RSS"
+          description="Resident memory used by the Electron main process."
+        >
+          <ValueBadge>{usageSummary.local.mainProcessRssBytes == null ? 'Unavailable' : formatBytes(usageSummary.local.mainProcessRssBytes)}</ValueBadge>
         </SettingsRow>
       </SettingsGroup>
     </>
@@ -490,6 +752,111 @@ function DisabledRow({ title, description }: { title: string; description: strin
   );
 }
 
+function NumberStepper({
+  value,
+  min,
+  max,
+  defaultValue,
+  onChange,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  defaultValue: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => onChange(defaultValue)}
+        disabled={value === defaultValue}
+        className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-border-default bg-bg-subtle text-text-tertiary transition hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-45"
+        title="Reset"
+      >
+        <ReloadIcon className="h-4 w-4" />
+      </button>
+      <div className="inline-flex h-9 items-center overflow-hidden rounded-[12px] border border-border-default bg-bg-subtle">
+        <button
+          type="button"
+          onClick={() => onChange(Math.max(min, value - 1))}
+          disabled={value <= min}
+          className="inline-flex h-full w-10 items-center justify-center text-lg leading-none text-text-tertiary transition hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Decrease value"
+        >
+          -
+        </button>
+        <span className="inline-flex h-full min-w-[56px] items-center justify-center border-x border-border-subtle px-3 text-[13px] font-medium tabular-nums text-text-primary">
+          {value}
+        </span>
+        <button
+          type="button"
+          onClick={() => onChange(Math.min(max, value + 1))}
+          disabled={value >= max}
+          className="inline-flex h-full w-10 items-center justify-center text-lg leading-none text-text-tertiary transition hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Increase value"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FontFamilyField({
+  value,
+  placeholder,
+  onCommit,
+}: {
+  value: FontFamilyOverride;
+  placeholder: string;
+  onCommit: (value: FontFamilyOverride) => void;
+}) {
+  const [draft, setDraft] = useState(value ?? '');
+
+  useEffect(() => {
+    setDraft(value ?? '');
+  }, [value]);
+
+  const commitValue = (rawValue: string) => {
+    const normalized = rawValue.trim();
+    onCommit(normalized.length > 0 ? normalized : null);
+  };
+
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setDraft(event.target.value);
+  };
+
+  const handleBlur = (event: FocusEvent<HTMLInputElement>) => {
+    commitValue(event.currentTarget.value);
+  };
+
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      commitValue(event.currentTarget.value);
+      event.currentTarget.blur();
+    }
+
+    if (event.key === 'Escape') {
+      setDraft(value ?? '');
+      event.currentTarget.blur();
+    }
+  };
+
+  return (
+    <input
+      type="text"
+      value={draft}
+      placeholder={placeholder}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      className="h-9 min-w-[190px] rounded-[10px] border border-border-default bg-bg-subtle px-3 text-[13px] font-medium text-text-primary outline-none transition hover:bg-bg-hover focus:border-border-strong placeholder:text-text-muted"
+      spellCheck={false}
+    />
+  );
+}
+
 function ThemeModePicker({ current, onChange }: { current: ThemeMode; onChange: (mode: ThemeMode) => void }) {
   const items: Array<{ mode: ThemeMode; label: string; icon: typeof SunIcon }> = [
     { mode: 'light', label: 'Light', icon: SunIcon },
@@ -516,6 +883,39 @@ function ThemeModePicker({ current, onChange }: { current: ThemeMode; onChange: 
           >
             <Icon className="h-4 w-4" />
             <span>{item.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ProviderPicker({
+  current,
+  onChange,
+}: {
+  current: ProviderId;
+  onChange: (providerId: ProviderId) => void;
+}) {
+  const items: ProviderId[] = ['openrouter', 'glm'];
+
+  return (
+    <div className="mb-4 inline-flex rounded-[14px] border border-border-default bg-bg-subtle p-1">
+      {items.map((providerId) => {
+        const isActive = providerId === current;
+
+        return (
+          <button
+            key={providerId}
+            type="button"
+            onClick={() => onChange(providerId)}
+            className={`inline-flex h-9 items-center rounded-[10px] px-3 text-[13px] font-medium transition ${
+              isActive
+                ? 'bg-bg-elevated text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]'
+                : 'text-text-tertiary hover:text-text-primary'
+            }`}
+          >
+            {PROVIDER_METADATA[providerId].label}
           </button>
         );
       })}
@@ -621,6 +1021,23 @@ function formatUsd(value?: number | null) {
   }).format(value);
 }
 
+function formatBytes(value: number) {
+  if (value < 1024) {
+    return `${value} B`;
+  }
+
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let normalized = value;
+  let unitIndex = -1;
+
+  do {
+    normalized /= 1024;
+    unitIndex += 1;
+  } while (normalized >= 1024 && unitIndex < units.length - 1);
+
+  return `${normalized.toFixed(normalized >= 100 ? 0 : normalized >= 10 ? 1 : 2)} ${units[unitIndex]}`;
+}
+
 function formatTimestamp(value?: string | null) {
   if (!value) {
     return 'never';
@@ -686,18 +1103,27 @@ function toneForMetricState(state: UsageProviderSummary['state']): 'success' | '
   return 'muted';
 }
 
-function buildUsageSummary(
-  settings: SettingsSummary | null,
-  conversationDetails: Record<string, ConversationDetail>
-): UsageSummary {
+export function buildUsageSummary({
+  settings,
+  conversationPages,
+  conversationStats,
+  diagnostics,
+  rendererHeapBytes,
+}: {
+  settings: SettingsSummary | null;
+  conversationPages: Record<string, ConversationPage>;
+  conversationStats: ConversationStats | null;
+  diagnostics: DiagnosticsSnapshot | null;
+  rendererHeapBytes: number | null;
+}): UsageSummary {
   let inputTokens = 0;
   let outputTokens = 0;
   let reasoningTokens = 0;
   let totalCost = 0;
   let hasCost = false;
 
-  for (const detail of Object.values(conversationDetails)) {
-    for (const message of detail.messages) {
+  for (const page of Object.values(conversationPages)) {
+    for (const message of page.messages) {
       inputTokens += message.inputTokens ?? 0;
       outputTokens += message.outputTokens ?? 0;
       reasoningTokens += message.reasoningTokens ?? 0;
@@ -716,7 +1142,7 @@ function buildUsageSummary(
   }
 
   const openRouter = buildProviderUsageSummary('openrouter', settings);
-  const openAi = buildProviderUsageSummary('openai', settings);
+  const glm = buildProviderUsageSummary('glm', settings);
 
   return {
     local: {
@@ -725,16 +1151,21 @@ function buildUsageSummary(
       outputTokens,
       reasoningTokens,
       estimatedCostUsd: hasCost ? totalCost : null,
-      loadedConversationCount: Object.keys(conversationDetails).length,
-      loadedMessageCount: Object.values(conversationDetails).reduce((total, detail) => total + detail.messages.length, 0),
+      storedConversationCount: conversationStats?.storedConversationCount ?? 0,
+      storedMessageCount: conversationStats?.storedMessageCount ?? 0,
+      databaseSizeBytes: conversationStats?.databaseSizeBytes ?? diagnostics?.databaseSizeBytes ?? 0,
+      loadedConversationCount: Object.keys(conversationPages).length,
+      loadedMessageCount: Object.values(conversationPages).reduce((total, page) => total + page.messages.length, 0),
+      rendererHeapBytes,
+      mainProcessRssBytes: diagnostics?.mainProcess.rssBytes ?? null,
     },
-    providers: [openRouter, openAi],
+    providers: [openRouter, glm],
   };
 }
 
 function buildProviderUsageSummary(providerId: ProviderId, settings: SettingsSummary | null): UsageProviderSummary {
   const provider = settings?.providers.find((entry) => entry.providerId === providerId) ?? null;
-  const label = providerId === 'openrouter' ? 'OpenRouter rate limits' : 'OpenAI usage and cost';
+  const label = `${PROVIDER_METADATA[providerId].label} usage`;
 
   if (!provider?.hasSecret) {
     return {
@@ -742,10 +1173,7 @@ function buildProviderUsageSummary(providerId: ProviderId, settings: SettingsSum
       label,
       state: 'not_connected',
       primary: 'Not connected',
-      secondary:
-        providerId === 'openrouter'
-          ? 'Add an OpenRouter key to expose free-tier usage and rate-limit telemetry.'
-          : 'Add an OpenAI key before usage and API cost telemetry can appear here.',
+      secondary: `Add a ${PROVIDER_METADATA[providerId].label} key before provider telemetry can appear here.`,
     };
   }
 
@@ -754,10 +1182,7 @@ function buildProviderUsageSummary(providerId: ProviderId, settings: SettingsSum
     label,
     state: 'unavailable',
     primary: 'Pending provider telemetry',
-    secondary:
-      providerId === 'openrouter'
-        ? 'The layout is ready for remaining free-tier limits once provider metrics are wired in.'
-        : 'The layout is ready for OpenAI token and spend telemetry once provider metrics are wired in.',
+    secondary: `The layout is ready for ${PROVIDER_METADATA[providerId].label} telemetry once provider metrics are wired in.`,
   };
 }
 

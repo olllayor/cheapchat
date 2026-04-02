@@ -1,19 +1,21 @@
 import {
-  ActivityLogIcon,
   ChevronRightIcon,
   DotFilledIcon,
   GearIcon,
   PersonIcon,
   ReloadIcon,
+  TimerIcon,
   UpdateIcon,
 } from '@radix-ui/react-icons';
 
-import type { AppUpdateSnapshot, ConversationDetail, SettingsSection, SettingsSummary } from '../../shared/contracts';
+import type { AppUpdateSnapshot, ConversationStats, SettingsSection, SettingsSummary } from '../../shared/contracts';
+import { PROVIDER_METADATA } from '../../shared/providerMetadata';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 
@@ -22,28 +24,32 @@ type SidebarSettingsMenuProps = {
   settings: SettingsSummary | null;
   updateState: AppUpdateSnapshot;
   isRefreshingModels: boolean;
-  conversationDetails: Record<string, ConversationDetail>;
+  conversationStats: ConversationStats | null;
+  loadedMessageCount: number;
+  settingsShortcutLabel?: string | null;
   onOpenSettings: (section?: SettingsSection) => void;
   onRefreshModels: () => void;
   onCheckForUpdates: () => void;
 };
 
 function getProfileSubtitle(settings: SettingsSummary | null) {
-  const openRouter = settings?.providers.find((provider) => provider.providerId === 'openrouter');
+  const configuredProvider = settings?.providers.find((provider) => provider.hasSecret);
 
-  if (!openRouter?.hasSecret) {
+  if (!configuredProvider?.hasSecret) {
     return 'No API key configured';
   }
 
-  if (openRouter.status === 'valid') {
-    return 'OpenRouter configured';
+  const metadata = PROVIDER_METADATA[configuredProvider.providerId];
+
+  if (configuredProvider.status === 'valid') {
+    return metadata.configuredLabel;
   }
 
-  if (openRouter.status === 'invalid') {
-    return 'OpenRouter needs attention';
+  if (configuredProvider.status === 'invalid') {
+    return metadata.needsAttentionLabel;
   }
 
-  return 'OpenRouter key saved';
+  return metadata.savedLabel;
 }
 
 function getUpdateLabel(updateState: AppUpdateSnapshot) {
@@ -62,22 +68,24 @@ function getUpdateLabel(updateState: AppUpdateSnapshot) {
   return 'Check for updates';
 }
 
-function getLoadedMessageCount(conversationDetails: Record<string, ConversationDetail>) {
-  return Object.values(conversationDetails).reduce((total, detail) => total + detail.messages.length, 0);
-}
-
 export function SidebarSettingsMenu({
   collapsed,
   settings,
   updateState,
   isRefreshingModels,
-  conversationDetails,
+  conversationStats,
+  loadedMessageCount,
+  settingsShortcutLabel,
   onOpenSettings,
   onRefreshModels,
   onCheckForUpdates,
 }: SidebarSettingsMenuProps) {
   const subtitle = getProfileSubtitle(settings);
-  const loadedMessageCount = getLoadedMessageCount(conversationDetails);
+  const usageLabel = conversationStats
+    ? `${conversationStats.storedMessageCount} stored`
+    : loadedMessageCount > 0
+      ? `${loadedMessageCount} loaded`
+      : 'Soon';
 
   return (
     <DropdownMenu>
@@ -123,18 +131,22 @@ export function SidebarSettingsMenu({
         >
           <GearIcon className="h-4 w-4 text-white/46" />
           <span>Settings</span>
-          <ChevronRightIcon className="ml-auto h-4 w-4 text-white/30" />
+          {settingsShortcutLabel ? (
+            <DropdownMenuShortcut className="text-[10px] tracking-[0.08em] text-white/36">
+              {settingsShortcutLabel}
+            </DropdownMenuShortcut>
+          ) : (
+            <ChevronRightIcon className="ml-auto h-4 w-4 text-white/30" />
+          )}
         </DropdownMenuItem>
 
         <DropdownMenuItem
           onSelect={() => onOpenSettings('usage')}
           className="h-10 rounded-xl px-3 text-[13px] text-white/82 focus:bg-white/[0.06] focus:text-white"
         >
-          <ActivityLogIcon className="h-4 w-4 text-white/46" />
+          <TimerIcon className="h-4 w-4 text-white/46" />
           <span>Usage & limits</span>
-          <span className="ml-auto text-[11px] text-white/32">
-            {loadedMessageCount > 0 ? `${loadedMessageCount} msgs` : 'Soon'}
-          </span>
+          <span className="ml-auto text-[11px] text-white/32">{usageLabel}</span>
         </DropdownMenuItem>
 
         <DropdownMenuItem

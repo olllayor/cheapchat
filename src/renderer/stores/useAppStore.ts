@@ -2,9 +2,13 @@ import { create } from 'zustand';
 
 import type {
   AppUpdateSnapshot,
+  ChatInputFilePart,
   ChatMessagePart,
-  ConversationDetail,
+  ConversationPage,
   ConversationSummary,
+  ConversationStats,
+  DiagnosticsSnapshot,
+  KeybindingRule,
   ModelSummary,
   ProviderCredentialSummary,
   ProviderId,
@@ -13,7 +17,24 @@ import type {
   SettingsUpdateRequest,
   StreamEvent
 } from '../../shared/contracts';
-import { applyStreamEventToParts } from '../../shared/messageParts';
+import {
+  MAX_TOTAL_ATTACHMENT_SIZE_BYTES,
+  getAttachmentCapabilityError,
+  getContentPreviewText,
+  isSupportedAttachmentMediaType,
+  normalizeAttachmentMediaType,
+  sumAttachmentSize,
+} from '../../shared/attachments';
+import { applyStreamEventToParts, buildUserMessageParts } from '../../shared/messageParts';
+import { PROVIDER_METADATA } from '../../shared/providerMetadata';
+import {
+  DEFAULT_CONVERSATION_PAGE_SIZE,
+  compactConversationPage,
+  getLoadedConversationCounts,
+  mergeConversationPage,
+  reconcileConversationCache
+} from './conversationCache';
+import { notify } from '../lib/notify';
 
 type DraftState = {
   requestId: string;
@@ -29,11 +50,6 @@ type DraftState = {
   startedAt: string;
 };
 
-type Notice = {
-  tone: 'error' | 'success' | 'info';
-  message: string;
-};
-
 type RefreshModelsOptions = {
   silent?: boolean;
 };
@@ -46,6 +62,11 @@ type AppState = {
   bootstrapError: string | null;
   activeView: AppView;
   settingsSection: SettingsSection;
+  commandPaletteOpen: boolean;
+  modelPickerOpen: boolean;
+  composerFocused: boolean;
+  composerFocusNonce: number;
+  activeCredentialProviderId: ProviderId;
   keyDraft: string;
   isSavingKey: boolean;
   isValidatingKey: boolean;
@@ -53,34 +74,47 @@ type AppState = {
   settings: SettingsSummary | null;
   models: ModelSummary[];
   conversations: ConversationSummary[];
-  conversationDetails: Record<string, ConversationDetail>;
+  conversationDetails: Record<string, ConversationPage>;
+  conversationStats: ConversationStats | null;
+  diagnostics: DiagnosticsSnapshot | null;
+  inactiveConversationIds: string[];
+  isLoadingOlderByConversation: Record<string, boolean>;
+  isLoadingConversationId: string | null;
   selectedConversationId: string | null;
   selectedModelIdByConversation: Record<string, string>;
   draftsByConversation: Record<string, DraftState | undefined>;
   requestToConversation: Record<string, string>;
-  notice: Notice | null;
   updateState: AppUpdateSnapshot;
   bootstrap: () => Promise<void>;
   refreshModels: (options?: RefreshModelsOptions) => Promise<void>;
   refreshConversationList: () => Promise<void>;
+  refreshConversationStats: () => Promise<void>;
+  refreshDiagnostics: () => Promise<void>;
   loadConversation: (conversationId: string) => Promise<void>;
+  loadOlderMessages: (conversationId: string) => Promise<void>;
   createConversation: () => Promise<void>;
   openSettings: (section?: SettingsSection) => void;
   closeSettings: () => void;
   setSettingsSection: (section: SettingsSection) => void;
+  setCommandPaletteOpen: (open: boolean) => void;
+  setModelPickerOpen: (open: boolean) => void;
+  setComposerFocused: (focused: boolean) => void;
+  requestComposerFocus: () => void;
+  setActiveCredentialProvider: (providerId: ProviderId) => void;
   setKeyDraft: (value: string) => void;
-  saveOpenRouterKey: () => Promise<void>;
-  validateOpenRouterKey: () => Promise<void>;
+  saveProviderKey: () => Promise<void>;
+  validateProviderKey: () => Promise<void>;
   updatePreferences: (patch: SettingsUpdateRequest) => Promise<void>;
   setUpdateState: (snapshot: AppUpdateSnapshot) => void;
   checkForUpdates: (options?: { manual?: boolean }) => Promise<void>;
   performUpdatePrimaryAction: () => Promise<void>;
   setSelectedModel: (conversationId: string, modelId: string) => void;
-  sendMessage: (content: string) => Promise<void>;
+  selectAdjacentConversation: (direction: 'previous' | 'next') => Promise<void>;
+  selectConversationByIndex: (index: number) => Promise<void>;
+  sendMessage: (message: { text: string; files: ChatInputFilePart[] }) => Promise<void>;
   abortConversation: (conversationId: string) => Promise<void>;
   deleteConversation: (conversationId: string) => Promise<void>;
   handleStreamEvent: (event: StreamEvent) => Promise<void>;
-  dismissNotice: () => void;
 };
 
 function getErrorMessage(error: unknown) {
@@ -91,14 +125,26 @@ function getErrorMessage(error: unknown) {
   return 'Unexpected error';
 }
 
-function findOpenRouterCredential(settings: SettingsSummary | null): ProviderCredentialSummary | null {
-  return settings?.providers.find((provider) => provider.providerId === 'openrouter') ?? null;
+function findCredential(settings: SettingsSummary | null, providerId: ProviderId): ProviderCredentialSummary | null {
+  return settings?.providers.find((provider) => provider.providerId === providerId) ?? null;
+}
+
+function findConfiguredCredential(settings: SettingsSummary | null): ProviderCredentialSummary | null {
+  return settings?.providers.find((provider) => provider.hasSecret) ?? null;
+}
+
+function getModelById(models: ModelSummary[], modelId: string | null) {
+  if (!modelId) {
+    return null;
+  }
+
+  return models.find((model) => model.id === modelId) ?? null;
 }
 
 function resolveSelectedModelId(
   selectedConversationId: string | null,
   selectedModelIdByConversation: Record<string, string>,
-  conversationDetails: Record<string, ConversationDetail>,
+  conversationDetails: Record<string, ConversationPage>,
   models: ModelSummary[]
 ) {
   if (!selectedConversationId) {
@@ -118,8 +164,33 @@ function resolveSelectedModelId(
   return models[0]?.id ?? null;
 }
 
-function chooseDefaultModel(models: ModelSummary[]) {
-  return models.find((model) => model.isFree && !model.archived)?.id ?? models[0]?.id ?? null;
+function chooseDefaultModel(models: ModelSummary[], preferredProviderId?: ProviderId | null) {
+  const availableModels = models.filter((model) => !model.archived);
+  const preferredModels = preferredProviderId
+    ? availableModels.filter((model) => model.providerId === preferredProviderId)
+    : availableModels;
+
+  return (
+    preferredModels.find((model) => model.isFree)?.id ??
+    preferredModels[0]?.id ??
+    availableModels.find((model) => model.isFree)?.id ??
+    availableModels[0]?.id ??
+    null
+  );
+}
+
+function collectRendererHeapBytes() {
+  if (typeof performance === 'undefined') {
+    return null;
+  }
+
+  const memory = (performance as Performance & {
+    memory?: {
+      usedJSHeapSize?: number;
+    };
+  }).memory;
+
+  return memory?.usedJSHeapSize ?? null;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -128,6 +199,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   bootstrapError: null,
   activeView: 'chat',
   settingsSection: 'general',
+  commandPaletteOpen: false,
+  modelPickerOpen: false,
+  composerFocused: false,
+  composerFocusNonce: 0,
+  activeCredentialProviderId: 'openrouter',
   keyDraft: '',
   isSavingKey: false,
   isValidatingKey: false,
@@ -136,11 +212,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   models: [],
   conversations: [],
   conversationDetails: {},
+  conversationStats: null,
+  diagnostics: null,
+  inactiveConversationIds: [],
+  isLoadingOlderByConversation: {},
+  isLoadingConversationId: null,
   selectedConversationId: null,
   selectedModelIdByConversation: {},
   draftsByConversation: {},
   requestToConversation: {},
-  notice: null,
   updateState: { status: 'idle' },
 
   bootstrap: async () => {
@@ -159,17 +239,23 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
 
       const selectedConversationId = conversations[0]?.id ?? null;
-      const [detail, models, updateState] = await Promise.all([
-        selectedConversationId ? window.atlasChat.conversations.get(selectedConversationId) : Promise.resolve(null),
+      const [detail, models, updateState, conversationStats, diagnostics] = await Promise.all([
+        selectedConversationId
+          ? window.atlasChat.conversations.getPage(selectedConversationId, { limit: DEFAULT_CONVERSATION_PAGE_SIZE })
+          : Promise.resolve(null),
         window.atlasChat.models.list({
           freeOnly: settings.showFreeOnlyByDefault,
           includeArchived: false,
           allowStale: true
         }),
-        window.atlasChat.updates.getState()
+        window.atlasChat.updates.getState(),
+        window.atlasChat.conversations.getStats(),
+        window.atlasChat.diagnostics.getSnapshot()
       ]);
 
-      const defaultModelId = chooseDefaultModel(models);
+      const defaultModelId = chooseDefaultModel(models, settings.defaultProviderId);
+      const activeCredentialProviderId =
+        settings.defaultProviderId ?? findConfiguredCredential(settings)?.providerId ?? 'openrouter';
 
       set({
         bootstrapping: false,
@@ -177,16 +263,24 @@ export const useAppStore = create<AppState>((set, get) => ({
         settings,
         models,
         conversations,
+        conversationStats,
+        diagnostics,
+        activeCredentialProviderId,
         selectedConversationId,
         conversationDetails: detail && selectedConversationId ? { [selectedConversationId]: detail } : {},
         updateState,
         selectedModelIdByConversation:
           defaultModelId && selectedConversationId
-            ? { [selectedConversationId]: detail?.conversation.defaultModelId ?? defaultModelId }
+            ? {
+                [selectedConversationId]:
+                  detail?.conversation.defaultModelId ??
+                  chooseDefaultModel(models, detail?.conversation.defaultProviderId ?? settings.defaultProviderId) ??
+                  defaultModelId
+              }
             : {}
       });
 
-      if (findOpenRouterCredential(settings)?.hasSecret) {
+      if (models.length === 0 || settings.providers.some((provider) => provider.hasSecret)) {
         void get().refreshModels({ silent: true });
       }
     } catch (error) {
@@ -209,7 +303,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         state.selectedModelIdByConversation,
         state.conversationDetails,
         models
-      );
+      ) ?? chooseDefaultModel(models, settings.defaultProviderId);
 
       set((current) => ({
         isRefreshingModels: false,
@@ -222,80 +316,218 @@ export const useAppStore = create<AppState>((set, get) => ({
                 [current.selectedConversationId]: selectedModelId
               }
             : current.selectedModelIdByConversation,
-        notice: silent
-          ? current.notice
-          : {
-              tone: 'success',
-              message: 'Model catalog refreshed.'
-            }
       }));
+
+      if (!silent) {
+        notify({
+          tone: 'success',
+          title: 'Model catalog refreshed.'
+        });
+      }
     } catch (error) {
-      set((current) => ({
-        isRefreshingModels: false,
-        notice: silent
-          ? current.notice
-          : {
-              tone: 'error',
-              message: getErrorMessage(error)
-            }
-      }));
+      set({ isRefreshingModels: false });
+
+      if (!silent) {
+        notify({
+          tone: 'error',
+          title: getErrorMessage(error)
+        });
+      }
     }
   },
 
   refreshConversationList: async () => {
-    const conversations = await window.atlasChat.conversations.list();
-    set({ conversations });
+    const [conversations, conversationStats] = await Promise.all([
+      window.atlasChat.conversations.list(),
+      window.atlasChat.conversations.getStats()
+    ]);
+    set({ conversations, conversationStats });
+  },
+
+  refreshConversationStats: async () => {
+    const conversationStats = await window.atlasChat.conversations.getStats();
+    set({ conversationStats });
+  },
+
+  refreshDiagnostics: async () => {
+    const diagnostics = await window.atlasChat.diagnostics.getSnapshot();
+    set({ diagnostics });
   },
 
   loadConversation: async (conversationId) => {
-    const cachedDetail = get().conversationDetails[conversationId];
+    const state = get();
+    const previousSelectedId = state.selectedConversationId;
+    const cacheState = reconcileConversationCache({
+      conversationDetails: state.conversationDetails,
+      inactiveConversationIds: state.inactiveConversationIds,
+      previousSelectedId,
+      nextSelectedId: conversationId
+    });
+    const cachedDetail = cacheState.conversationDetails[conversationId] ?? state.conversationDetails[conversationId];
 
-    set((state) => ({
+    set((current) => ({
       selectedConversationId: conversationId,
+      conversationDetails: cacheState.conversationDetails,
+      inactiveConversationIds: cacheState.inactiveConversationIds,
+      isLoadingConversationId: cachedDetail ? null : conversationId,
       selectedModelIdByConversation:
-        cachedDetail?.conversation.defaultModelId && !state.selectedModelIdByConversation[conversationId]
+        !current.selectedModelIdByConversation[conversationId]
           ? {
-              ...state.selectedModelIdByConversation,
-              [conversationId]: cachedDetail.conversation.defaultModelId
+              ...current.selectedModelIdByConversation,
+              [conversationId]:
+                cachedDetail?.conversation.defaultModelId ??
+                chooseDefaultModel(current.models, cachedDetail?.conversation.defaultProviderId ?? current.settings?.defaultProviderId) ??
+                ''
             }
-          : state.selectedModelIdByConversation
+          : current.selectedModelIdByConversation
     }));
 
-    const detail = await window.atlasChat.conversations.get(conversationId);
-    set((state) => ({
-      conversationDetails: {
-        ...state.conversationDetails,
-        [conversationId]: detail
-      },
-      selectedModelIdByConversation:
-        detail.conversation.defaultModelId && !state.selectedModelIdByConversation[conversationId]
-          ? {
-              ...state.selectedModelIdByConversation,
-              [conversationId]: detail.conversation.defaultModelId
-            }
-          : state.selectedModelIdByConversation
+    if (cachedDetail) {
+      return;
+    }
+
+    try {
+      const detail = await window.atlasChat.conversations.getPage(conversationId, { limit: DEFAULT_CONVERSATION_PAGE_SIZE });
+      set((current) => ({
+        conversationDetails: {
+          ...current.conversationDetails,
+          [conversationId]: detail
+        },
+        isLoadingConversationId:
+          current.isLoadingConversationId === conversationId ? null : current.isLoadingConversationId,
+        selectedModelIdByConversation:
+          !current.selectedModelIdByConversation[conversationId]
+            ? {
+                ...current.selectedModelIdByConversation,
+                [conversationId]:
+                  detail.conversation.defaultModelId ??
+                  chooseDefaultModel(current.models, detail.conversation.defaultProviderId ?? current.settings?.defaultProviderId) ??
+                  ''
+              }
+            : current.selectedModelIdByConversation
+      }));
+    } catch (error) {
+      set((current) => ({
+        isLoadingConversationId:
+          current.isLoadingConversationId === conversationId ? null : current.isLoadingConversationId
+      }));
+
+      notify({
+        tone: 'error',
+        title: getErrorMessage(error)
+      });
+    }
+  },
+
+  loadOlderMessages: async (conversationId) => {
+    const state = get();
+    const detail = state.conversationDetails[conversationId];
+
+    if (!detail?.hasOlder || !detail.nextCursor || state.isLoadingOlderByConversation[conversationId]) {
+      return;
+    }
+
+    set((current) => ({
+      isLoadingOlderByConversation: {
+        ...current.isLoadingOlderByConversation,
+        [conversationId]: true
+      }
     }));
+
+    try {
+      const page = await window.atlasChat.conversations.getPage(conversationId, {
+        cursor: detail.nextCursor,
+        limit: detail.limit
+      });
+
+      set((current) => {
+        const currentDetail = current.conversationDetails[conversationId];
+        if (!currentDetail) {
+          return {
+            isLoadingOlderByConversation: {
+              ...current.isLoadingOlderByConversation,
+              [conversationId]: false
+            }
+          };
+        }
+
+        const existingIds = new Set(currentDetail.messages.map((message) => message.id));
+        const olderMessages = page.messages.filter((message) => !existingIds.has(message.id));
+
+        return {
+          conversationDetails: {
+            ...current.conversationDetails,
+            [conversationId]: {
+              ...currentDetail,
+              conversation: page.conversation,
+              messages: [...olderMessages, ...currentDetail.messages],
+              hasOlder: page.hasOlder,
+              nextCursor: page.nextCursor,
+              limit: page.limit
+            }
+          },
+          isLoadingOlderByConversation: {
+            ...current.isLoadingOlderByConversation,
+            [conversationId]: false
+          }
+        };
+      });
+    } catch (error) {
+      set((current) => ({
+        isLoadingOlderByConversation: {
+          ...current.isLoadingOlderByConversation,
+          [conversationId]: false
+        }
+      }));
+
+      notify({
+        tone: 'error',
+        title: getErrorMessage(error)
+      });
+    }
   },
 
   createConversation: async () => {
     const created = await window.atlasChat.conversations.create();
     await get().refreshConversationList();
+    set({
+      activeView: 'chat',
+      commandPaletteOpen: false,
+      modelPickerOpen: false
+    });
     await get().loadConversation(created.id);
   },
 
-  openSettings: (section = 'general') => set({ activeView: 'settings', settingsSection: section }),
-  closeSettings: () => set({ activeView: 'chat' }),
+  openSettings: (section = 'general') =>
+    set({
+      activeView: 'settings',
+      settingsSection: section,
+      commandPaletteOpen: false,
+      modelPickerOpen: false
+    }),
+  closeSettings: () => set({ activeView: 'chat', modelPickerOpen: false }),
   setSettingsSection: (section) => set({ settingsSection: section }),
+  setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
+  setModelPickerOpen: (open) => set({ modelPickerOpen: open }),
+  setComposerFocused: (focused) => set({ composerFocused: focused }),
+  requestComposerFocus: () =>
+    set((state) => ({
+      activeView: 'chat',
+      commandPaletteOpen: false,
+      composerFocusNonce: state.composerFocusNonce + 1
+    })),
+  setActiveCredentialProvider: (providerId) => set({ activeCredentialProviderId: providerId, keyDraft: '' }),
   setKeyDraft: (value) => set({ keyDraft: value }),
 
-  saveOpenRouterKey: async () => {
-    const secret = get().keyDraft.trim();
+  saveProviderKey: async () => {
+    const state = get();
+    const providerId = state.activeCredentialProviderId;
+    const secret = state.keyDraft.trim();
+    const metadata = PROVIDER_METADATA[providerId];
     if (!secret) {
-      set({
-        notice: {
-          tone: 'error',
-          message: 'Enter an OpenRouter API key before saving.'
-        }
+      notify({
+        tone: 'error',
+        title: `Enter a ${metadata.label} API key before saving.`
       });
       return;
     }
@@ -303,48 +535,58 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ isSavingKey: true });
 
     try {
-      const settings = await window.atlasChat.settings.saveOpenRouterKey(secret);
+      const settings = await window.atlasChat.settings.saveProviderKey(providerId, secret);
       set({
         isSavingKey: false,
         settings,
         keyDraft: '',
-        notice: {
-          tone: 'success',
-          message: 'OpenRouter key saved to the OS keychain.'
-        }
+        activeCredentialProviderId: providerId
+      });
+
+      notify({
+        tone: 'success',
+        title: `${metadata.label} key saved to the OS keychain.`
       });
     } catch (error) {
       set({
-        isSavingKey: false,
-        notice: {
-          tone: 'error',
-          message: getErrorMessage(error)
-        }
+        isSavingKey: false
+      });
+
+      notify({
+        tone: 'error',
+        title: getErrorMessage(error)
       });
     }
   },
 
-  validateOpenRouterKey: async () => {
+  validateProviderKey: async () => {
+    const state = get();
+    const providerId = state.activeCredentialProviderId;
+    const secretOverride = state.keyDraft.trim() || undefined;
+    const metadata = PROVIDER_METADATA[providerId];
     set({ isValidatingKey: true });
 
     try {
-      const settings = await window.atlasChat.settings.validateOpenRouterKey();
+      const settings = await window.atlasChat.settings.validateProviderKey(providerId, secretOverride);
       set({
         isValidatingKey: false,
         settings,
-        notice: {
-          tone: 'success',
-          message: 'OpenRouter key validated successfully.'
-        }
+        keyDraft: '',
+      });
+
+      notify({
+        tone: 'success',
+        title: `${metadata.label} key validated successfully.`
       });
       await get().refreshModels({ silent: true });
     } catch (error) {
       set({
-        isValidatingKey: false,
-        notice: {
-          tone: 'error',
-          message: getErrorMessage(error)
-        }
+        isValidatingKey: false
+      });
+
+      notify({
+        tone: 'error',
+        title: getErrorMessage(error)
       });
     }
   },
@@ -369,7 +611,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         state.selectedConversationId && !state.selectedModelIdByConversation[state.selectedConversationId]
           ? {
               ...state.selectedModelIdByConversation,
-              [state.selectedConversationId]: chooseDefaultModel(models) ?? ''
+              [state.selectedConversationId]: chooseDefaultModel(models, settings.defaultProviderId) ?? ''
             }
           : state.selectedModelIdByConversation
     }));
@@ -381,32 +623,28 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const snapshot = await window.atlasChat.updates.check();
 
-      set({
-        updateState: snapshot,
-        notice:
-          !manual
-            ? null
-            : snapshot.status === 'error'
-              ? {
-                  tone: 'error',
-                  message: snapshot.message
-                }
-              : snapshot.status === 'not-available'
-                ? {
-                    tone: 'info',
-                    message: 'Atlas is up to date.'
-                  }
-                : null
-      });
+      set({ updateState: snapshot });
+
+      if (manual && snapshot.status === 'error') {
+        notify({
+          tone: 'error',
+          title: snapshot.message
+        });
+      }
+
+      if (manual && snapshot.status === 'not-available') {
+        notify({
+          tone: 'info',
+          title: 'Atlas is up to date.'
+        });
+      }
     } catch (error) {
-      set({
-        notice: manual
-          ? {
-              tone: 'error',
-              message: getErrorMessage(error)
-            }
-          : null
-      });
+      if (manual) {
+        notify({
+          tone: 'error',
+          title: getErrorMessage(error)
+        });
+      }
     }
   },
 
@@ -423,9 +661,53 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
   },
 
-  sendMessage: async (content) => {
-    const trimmed = content.trim();
-    if (!trimmed) {
+  selectAdjacentConversation: async (direction) => {
+    const state = get();
+    const currentIndex = state.conversations.findIndex(
+      (conversation) => conversation.id === state.selectedConversationId
+    );
+
+    if (currentIndex === -1) {
+      return;
+    }
+
+    const nextConversation =
+      direction === 'previous' ? state.conversations[currentIndex - 1] : state.conversations[currentIndex + 1];
+
+    if (!nextConversation) {
+      return;
+    }
+
+    set({
+      activeView: 'chat',
+      commandPaletteOpen: false,
+      modelPickerOpen: false
+    });
+    await get().loadConversation(nextConversation.id);
+  },
+
+  selectConversationByIndex: async (index) => {
+    const conversation = get().conversations[index];
+    if (!conversation) {
+      return;
+    }
+
+    set({
+      activeView: 'chat',
+      commandPaletteOpen: false,
+      modelPickerOpen: false
+    });
+    await get().loadConversation(conversation.id);
+  },
+
+  sendMessage: async (message) => {
+    const trimmed = message.text.trim();
+    const normalizedFiles = message.files.map((file) => ({
+      ...file,
+      mediaType: normalizeAttachmentMediaType(file.mediaType, file.filename),
+    }));
+
+    if (!trimmed && normalizedFiles.length === 0) {
       return;
     }
 
@@ -440,7 +722,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       return;
     }
 
-    const detail = state.conversationDetails[conversationId] ?? (await window.atlasChat.conversations.get(conversationId));
+    const detail =
+      state.conversationDetails[conversationId] ??
+      (await window.atlasChat.conversations.getPage(conversationId, { limit: DEFAULT_CONVERSATION_PAGE_SIZE }));
     const modelId =
       resolveSelectedModelId(
         conversationId,
@@ -450,59 +734,129 @@ export const useAppStore = create<AppState>((set, get) => ({
           [conversationId]: detail
         },
         state.models
-      ) ?? chooseDefaultModel(state.models);
+    ) ?? chooseDefaultModel(state.models, detail.conversation.defaultProviderId ?? state.settings?.defaultProviderId);
 
     if (!modelId) {
-      set({
-        notice: {
-          tone: 'error',
-          message: 'Refresh the model catalog and select a model before sending.'
-        }
+      notify({
+        tone: 'error',
+        title: 'Refresh the model catalog and select a model before sending.'
       });
       return;
     }
 
-    const completeMessages = detail.messages
-      .filter((message) => message.status === 'complete')
-      .map((message) => ({
-        role: message.role,
-        content: message.content
-      }));
+    const selectedModel = getModelById(state.models, modelId);
+    const providerId = selectedModel?.providerId ?? detail.conversation.defaultProviderId ?? state.settings?.defaultProviderId;
 
-    const request = await window.atlasChat.chat.start({
-      conversationId,
-      providerId: 'openrouter' as const,
-      modelId,
-      messages: [...completeMessages, { role: 'user' as const, content: trimmed }],
-      enableTools: Boolean(state.models.find((model) => model.id === modelId)?.supportsTools),
-      temperature: 0.65
-    });
+    if (!selectedModel || !providerId) {
+      notify({
+        tone: 'error',
+        title: 'Select a valid model before sending.'
+      });
+      return;
+    }
+
+    const unsupportedAttachment = normalizedFiles.find(
+      (file) => !isSupportedAttachmentMediaType(file.mediaType, file.filename),
+    );
+
+    if (unsupportedAttachment) {
+      notify({
+        tone: 'error',
+        title: `${unsupportedAttachment.filename ?? 'This file'} is not a supported attachment type.`,
+      });
+      return;
+    }
+
+    const totalAttachmentBytes = sumAttachmentSize(normalizedFiles);
+    if (totalAttachmentBytes > MAX_TOTAL_ATTACHMENT_SIZE_BYTES) {
+      notify({
+        tone: 'error',
+        title: 'Attachments are too large to send together.',
+      });
+      return;
+    }
+
+    const attachmentCapabilityError = getAttachmentCapabilityError(selectedModel, normalizedFiles);
+    if (attachmentCapabilityError) {
+      notify({
+        tone: 'error',
+        title: attachmentCapabilityError,
+      });
+      return;
+    }
+
+    const credential = findCredential(state.settings, providerId);
+    if (!credential?.hasSecret) {
+      notify({
+        tone: 'error',
+        title: `Save a ${PROVIDER_METADATA[providerId].label} API key before sending with this model.`
+      });
+
+      set({
+        activeCredentialProviderId: providerId
+      });
+      return;
+    }
+
+    const inputParts = [
+      ...(trimmed ? [{ type: 'text' as const, text: trimmed }] : []),
+      ...normalizedFiles.map((file) => ({
+        type: 'file' as const,
+        filename: file.filename,
+        mediaType: file.mediaType,
+        sizeBytes: file.sizeBytes ?? null,
+        url: file.url,
+      })),
+    ];
+    const previewContent = getContentPreviewText(trimmed, inputParts);
+
+    let request;
+    try {
+      request = await window.atlasChat.chat.start({
+        conversationId,
+        providerId,
+        modelId,
+        messages: [
+          {
+            role: 'user' as const,
+            content: previewContent,
+            parts: inputParts,
+          },
+        ],
+        enableTools: Boolean(selectedModel.supportsTools),
+        temperature: 0.65
+      });
+    } catch (error) {
+      notify({
+        tone: 'error',
+        title: getErrorMessage(error),
+      });
+      throw error;
+    }
 
     const now = new Date().toISOString();
+    const optimisticParts = buildUserMessageParts({
+      content: trimmed,
+      parts: inputParts,
+      idPrefix: request.requestId,
+    });
 
     set((current) => ({
       conversationDetails: {
         ...current.conversationDetails,
         [conversationId]: {
-          conversation: detail.conversation,
+          ...detail,
           messages: [
             ...detail.messages,
             {
               id: `optimistic-${request.requestId}`,
               conversationId,
               role: 'user' as const,
-              content: trimmed,
+              content: previewContent,
               reasoning: null,
-              parts: [
-                {
-                  id: `text-${request.requestId}`,
-                  type: 'text' as const,
-                  text: trimmed,
-                  state: 'done' as const
-                }
-              ],
+              parts: optimisticParts,
               status: 'complete' as const,
-              providerId: 'openrouter' as const,
+              providerId,
               modelId,
               inputTokens: null,
               outputTokens: null,
@@ -514,11 +868,17 @@ export const useAppStore = create<AppState>((set, get) => ({
           ]
         }
       },
+      conversationStats: current.conversationStats
+        ? {
+            ...current.conversationStats,
+            storedMessageCount: current.conversationStats.storedMessageCount + 1
+          }
+        : current.conversationStats,
       draftsByConversation: {
         ...current.draftsByConversation,
         [conversationId]: {
           requestId: request.requestId,
-          providerId: 'openrouter' as const,
+          providerId,
           modelId,
           parts: [],
           status: 'streaming' as const,
@@ -536,8 +896,9 @@ export const useAppStore = create<AppState>((set, get) => ({
                 ...conversation,
                 updatedAt: now,
                 lastMessageAt: now,
-                lastMessagePreview: trimmed,
-                defaultProviderId: 'openrouter' as const,
+                lastMessagePreview: previewContent,
+                lastUserMessagePreview: previewContent,
+                defaultProviderId: providerId,
                 defaultModelId: modelId
               }
             : conversation
@@ -567,6 +928,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const { [conversationId]: _deletedDetail, ...restDetails } = current.conversationDetails;
       const { [conversationId]: _deletedDraft, ...restDrafts } = current.draftsByConversation;
       const { [conversationId]: _deletedModel, ...restSelectedModels } = current.selectedModelIdByConversation;
+      const { [conversationId]: _loadingOlder, ...restLoadingOlder } = current.isLoadingOlderByConversation;
       const requestToConversation = Object.fromEntries(
         Object.entries(current.requestToConversation).filter(([, mappedConversationId]) => mappedConversationId !== conversationId)
       );
@@ -581,6 +943,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         conversationDetails: restDetails,
         draftsByConversation: restDrafts,
         selectedModelIdByConversation: restSelectedModels,
+        isLoadingOlderByConversation: restLoadingOlder,
+        inactiveConversationIds: current.inactiveConversationIds.filter((id) => id !== conversationId),
         requestToConversation,
         selectedConversationId: nextSelectedConversationId
       };
@@ -588,7 +952,10 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     await window.atlasChat.conversations.delete(conversationId);
 
-    const conversations = await window.atlasChat.conversations.list();
+    const [conversations, conversationStats] = await Promise.all([
+      window.atlasChat.conversations.list(),
+      window.atlasChat.conversations.getStats()
+    ]);
 
     if (conversations.length === 0) {
       const createdConversation = await window.atlasChat.conversations.create();
@@ -599,7 +966,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     const nextSelectedConversationId = get().selectedConversationId;
 
-    set({ conversations });
+    set({ conversations, conversationStats });
 
     if (nextSelectedConversationId && conversations.some((conversation) => conversation.id === nextSelectedConversationId)) {
       const loadedDetail = get().conversationDetails[nextSelectedConversationId];
@@ -672,8 +1039,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
 
     if (event.type === 'error') {
-      const detail = await window.atlasChat.conversations.get(conversationId);
-      const conversations = await window.atlasChat.conversations.list();
+      const [page, conversations, conversationStats, diagnostics] = await Promise.all([
+        window.atlasChat.conversations.getPage(conversationId, { limit: DEFAULT_CONVERSATION_PAGE_SIZE }),
+        window.atlasChat.conversations.list(),
+        window.atlasChat.conversations.getStats(),
+        window.atlasChat.diagnostics.getSnapshot()
+      ]);
       const shouldShowNotice =
         event.code === 'auth_error' || event.code === 'missing_credential';
 
@@ -689,9 +1060,11 @@ export const useAppStore = create<AppState>((set, get) => ({
           requestToConversation: restRequests,
           conversationDetails: {
             ...state.conversationDetails,
-            [conversationId]: detail
+            [conversationId]: mergeConversationPage(state.conversationDetails[conversationId], page)
           },
           conversations,
+          conversationStats,
+          diagnostics,
           draftsByConversation: {
             ...state.draftsByConversation,
             [conversationId]: {
@@ -699,23 +1072,28 @@ export const useAppStore = create<AppState>((set, get) => ({
               status: event.code === 'aborted' ? 'aborted' : 'error',
               errorMessage: event.message
             }
-          },
-          notice: shouldShowNotice
-            ? {
-                tone: 'error',
-                message: event.message
-              }
-            : null
+          }
         };
       });
+
+      if (shouldShowNotice) {
+        notify({
+          tone: 'error',
+          title: event.message
+        });
+      }
       return;
     }
 
-    const detail = await window.atlasChat.conversations.get(conversationId);
-    const conversations = await window.atlasChat.conversations.list();
+    const [page, conversations, conversationStats, diagnostics] = await Promise.all([
+      window.atlasChat.conversations.getPage(conversationId, { limit: DEFAULT_CONVERSATION_PAGE_SIZE }),
+      window.atlasChat.conversations.list(),
+      window.atlasChat.conversations.getStats(),
+      window.atlasChat.diagnostics.getSnapshot()
+    ]);
 
     set((state) => {
-      const { [conversationId]: _draft, ...restDrafts } = state.draftsByConversation;
+      const { [conversationId]: draft, ...restDrafts } = state.draftsByConversation;
       const { [event.requestId]: _omitted, ...restRequests } = state.requestToConversation;
 
       return {
@@ -723,12 +1101,38 @@ export const useAppStore = create<AppState>((set, get) => ({
         draftsByConversation: restDrafts,
         conversationDetails: {
           ...state.conversationDetails,
-          [conversationId]: detail
+          [conversationId]: mergeConversationPage(state.conversationDetails[conversationId], page)
         },
-        conversations
+        conversations,
+        conversationStats,
+        diagnostics
       };
     });
   },
 
-  dismissNotice: () => set({ notice: null })
 }));
+
+export function selectLoadedConversationMetrics(state: AppState) {
+  return getLoadedConversationCounts(state.conversationDetails);
+}
+
+export function selectDiagnosticsSummary(state: AppState) {
+  const loadedMetrics = getLoadedConversationCounts(state.conversationDetails);
+
+  return {
+    rendererHeapBytes: collectRendererHeapBytes(),
+    loadedConversationCount: loadedMetrics.loadedConversationCount,
+    loadedMessageCount: loadedMetrics.loadedMessageCount,
+    storedConversationCount: state.conversationStats?.storedConversationCount ?? 0,
+    storedMessageCount: state.conversationStats?.storedMessageCount ?? 0,
+    databaseSizeBytes: state.conversationStats?.databaseSizeBytes ?? state.diagnostics?.databaseSizeBytes ?? 0,
+    mainProcessRssBytes: state.diagnostics?.mainProcess.rssBytes ?? null,
+    collectedAt: state.diagnostics?.collectedAt ?? null,
+    build: state.diagnostics?.build ?? null,
+    mainProcess: state.diagnostics?.mainProcess ?? null
+  };
+}
+
+export function selectCompactedConversationForCache(detail: ConversationPage) {
+  return compactConversationPage(detail);
+}

@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS model_cache (
   context_window INTEGER,
   is_free INTEGER NOT NULL DEFAULT 0,
   supports_vision INTEGER NOT NULL DEFAULT 0,
+  supports_document_input INTEGER NOT NULL DEFAULT 0,
   supports_tools INTEGER NOT NULL DEFAULT 0,
   archived INTEGER NOT NULL DEFAULT 0,
   last_synced_at TEXT NOT NULL,
@@ -62,6 +63,9 @@ ON conversations (updated_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_created_at
 ON messages (conversation_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_created_at_id
+ON messages (conversation_id, created_at, id);
 `;
 
 export function applySchema(database: SqliteDatabase) {
@@ -91,5 +95,19 @@ export function applySchema(database: SqliteDatabase) {
 
   if (!columns.includes('response_messages_json')) {
     database.exec('ALTER TABLE messages ADD COLUMN response_messages_json TEXT');
+  }
+
+  const modelColumns = database
+    .prepare<
+      [],
+      {
+        name: string;
+      }
+    >('PRAGMA table_info(model_cache)')
+    .all()
+    .map((column) => column.name);
+
+  if (!modelColumns.includes('supports_document_input')) {
+    database.exec('ALTER TABLE model_cache ADD COLUMN supports_document_input INTEGER NOT NULL DEFAULT 0');
   }
 }

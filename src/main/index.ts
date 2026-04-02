@@ -4,10 +4,15 @@ import { BrowserWindow, app } from 'electron/main';
 
 import { ChatEngine } from './ai/core/ChatEngine';
 import { ModelRegistry } from './ai/core/ModelRegistry';
+import type { ProviderAdapter } from './ai/core/ProviderAdapter';
+import type { ProviderRegistry } from './ai/core/providerRegistry';
+import { AttachmentStore } from './attachments/AttachmentStore';
+import { GlmProvider } from './ai/providers/glm';
 import { OpenRouterProvider } from './ai/providers/openrouter';
 import { createWindow } from './bootstrap/createWindow';
 import { getDockIcon } from './bootstrap/iconPath';
 import { createAppDatabase } from './db/client';
+import { registerDiagnosticsIpc } from './ipc/diagnostics';
 import { registerChatIpc } from './ipc/chat';
 import { registerConversationsIpc } from './ipc/conversations';
 import { registerModelsIpc } from './ipc/models';
@@ -61,21 +66,35 @@ async function resolveDatabasePath() {
   return databasePath;
 }
 
+async function resolveAttachmentDirectory() {
+  const attachmentsPath = join(app.getPath('userData'), 'attachments');
+  await mkdir(attachmentsPath, { recursive: true });
+  return attachmentsPath;
+}
+
 app.whenReady().then(async () => {
   const icon = getDockIcon();
   if (icon && process.platform === 'darwin' && app.dock) {
     app.dock.setIcon(icon);
   }
 
-  const database = createAppDatabase(await resolveDatabasePath());
+  const attachmentStore = new AttachmentStore(await resolveAttachmentDirectory());
+  const database = createAppDatabase(await resolveDatabasePath(), attachmentStore);
   const keychain = new KeychainStore();
   const openRouter = new OpenRouterProvider();
+  const glm = new GlmProvider();
   const updateService = new UpdateService();
+  const providers: ProviderRegistry = new Map<ProviderAdapter['providerId'], ProviderAdapter>([
+    [openRouter.providerId, openRouter],
+    [glm.providerId, glm]
+  ]);
 
-  database.settings.syncSecretPresence('openrouter', Boolean(await keychain.getSecret('openrouter')));
+  for (const providerId of providers.keys()) {
+    database.settings.syncSecretPresence(providerId, Boolean(await keychain.getSecret(providerId)));
+  }
 
-  const modelRegistry = new ModelRegistry(database.models, database.settings, keychain, openRouter);
-  const chatEngine = new ChatEngine(database.conversations, database.models, keychain, openRouter);
+  const modelRegistry = new ModelRegistry(database.models, database.settings, keychain, providers);
+  const chatEngine = new ChatEngine(database.conversations, database.models, keychain, providers, attachmentStore);
 
   registerSettingsIpc({
     settingsRepo: database.settings,
@@ -85,6 +104,7 @@ app.whenReady().then(async () => {
   registerModelsIpc(modelRegistry);
   registerConversationsIpc(database.conversations);
   registerChatIpc(chatEngine);
+  registerDiagnosticsIpc(database.conversations);
   registerUpdatesIpc(updateService);
 
   const window = createWindow();

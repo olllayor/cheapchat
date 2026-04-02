@@ -74,6 +74,10 @@ function normalizeModel(model: OpenRouterModel): ModelSummary {
   const modality = model.architecture?.modality ?? '';
   const inputModalities = model.architecture?.input_modalities ?? [];
   const supportedParameters = model.supported_parameters ?? [];
+  const supportsDocumentInput =
+    modality.includes('file') ||
+    modality.includes('pdf') ||
+    inputModalities.some((entry) => /(document|file|pdf)/i.test(entry));
 
   return {
     id: model.id,
@@ -83,6 +87,7 @@ function normalizeModel(model: OpenRouterModel): ModelSummary {
     isFree: model.id.endsWith(':free') || (isZeroPrice(model.pricing?.prompt) && isZeroPrice(model.pricing?.completion)),
     supportsVision:
       modality.includes('image') || inputModalities.some((entry) => entry.includes('image')),
+    supportsDocumentInput,
     supportsTools: supportedParameters.some((entry) => entry.includes('tool')),
     archived: Boolean(model.archived),
     lastSyncedAt: new Date().toISOString(),
@@ -107,7 +112,11 @@ export class OpenRouterProvider implements ProviderAdapter {
     }
   }
 
-  async listModels(apiKey: string) {
+  async listModels(apiKey: string | null) {
+    if (!apiKey) {
+      throw new Error('Add an OpenRouter API key in settings before refreshing models.');
+    }
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 60_000);
     try {

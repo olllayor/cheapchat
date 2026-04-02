@@ -2,15 +2,20 @@ import { randomUUID } from 'node:crypto';
 
 import type { ModelMessage } from 'ai';
 
+import type { AttachmentStore } from '../../attachments/AttachmentStore';
 import type {
   ChatMessage,
   ChatMessagePart,
   ConversationDetail,
+  ConversationPage,
+  ConversationPageRequest,
+  ConversationStats,
   ConversationSummary,
   MessageRole,
   MessageStatus,
   ProviderId
 } from '../../../shared/contracts';
+import { decodeConversationPageCursor, encodeConversationPageCursor } from '../../../shared/conversationPaging';
 import { buildFallbackMessageParts, getReasoningContentFromParts, getTextContentFromParts } from '../../../shared/messageParts';
 import type { SqliteDatabase } from '../client';
 
@@ -29,6 +34,8 @@ type ConversationSummaryRow = {
   createdAt: string;
   updatedAt: string;
   lastMessagePreview: string | null;
+  lastUserMessagePreview: string | null;
+  lastAssistantMessagePreview: string | null;
   lastMessageAt: string | null;
   defaultProviderId: ProviderId | null;
   defaultModelId: string | null;
@@ -117,8 +124,90 @@ function mapMessage(row: MessageRow): ChatMessage {
   };
 }
 
+function buildModelMessageContent(
+  parts: ChatMessagePart[],
+  attachmentStore: Pick<AttachmentStore, 'readAttachmentData'>,
+) {
+  const content: Array<
+    | {
+        type: 'text';
+        text: string;
+      }
+    | {
+        type: 'file';
+        data: Uint8Array | string;
+        filename: string | undefined;
+        mediaType: string;
+      }
+  > = [];
+
+  for (const part of parts) {
+    if (part.type === 'text') {
+      content.push({
+        type: 'text',
+        text: part.text,
+      });
+      continue;
+    }
+
+    if (part.type !== 'file') {
+      continue;
+    }
+
+    const storedData = part.storageKey ? attachmentStore.readAttachmentData(part.storageKey) : null;
+    const data = storedData ?? (part.url.startsWith('data:') ? part.url : null);
+
+    if (!data) {
+      continue;
+    }
+
+    content.push({
+      type: 'file',
+      data,
+      filename: part.filename,
+      mediaType: part.mediaType,
+    });
+  }
+
+  if (content.length === 0) {
+    const text = getTextContentFromParts(parts);
+    return text;
+  }
+
+  return content;
+}
+
+function mapConversationSummary(row: ConversationSummaryRow): ConversationSummary {
+  return {
+    id: row.id,
+    title: row.title,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    lastMessagePreview: row.lastMessagePreview,
+    lastUserMessagePreview: row.lastUserMessagePreview,
+    lastAssistantMessagePreview: row.lastAssistantMessagePreview,
+    lastMessageAt: row.lastMessageAt,
+    defaultProviderId: row.defaultProviderId,
+    defaultModelId: row.defaultModelId
+  };
+}
+
+const NOOP_ATTACHMENT_STORE: Pick<
+  AttachmentStore,
+  'deleteConversationAttachments' | 'readAttachmentData'
+> = {
+  deleteConversationAttachments: () => undefined,
+  readAttachmentData: () => null,
+};
+
 export class ConversationsRepo {
-  constructor(private readonly db: SqliteDatabase) {}
+  constructor(
+    private readonly db: SqliteDatabase,
+    private readonly attachmentStore: Pick<
+      AttachmentStore,
+      'deleteConversationAttachments' | 'readAttachmentData'
+    > = NOOP_ATTACHMENT_STORE,
+  ) {}
 
   list() {
     const rows = this.db
@@ -137,6 +226,22 @@ export class ConversationsRepo {
               LIMIT 1
             ) AS lastMessagePreview,
             (
+              SELECT substr(m.content, 1, 160)
+              FROM messages m
+              WHERE m.conversation_id = c.id
+                AND m.role = 'user'
+              ORDER BY m.created_at DESC, m.id DESC
+              LIMIT 1
+            ) AS lastUserMessagePreview,
+            (
+              SELECT substr(m.content, 1, 160)
+              FROM messages m
+              WHERE m.conversation_id = c.id
+                AND m.role = 'assistant'
+              ORDER BY m.created_at DESC, m.id DESC
+              LIMIT 1
+            ) AS lastAssistantMessagePreview,
+            (
               SELECT m.created_at
               FROM messages m
               WHERE m.conversation_id = c.id
@@ -151,16 +256,7 @@ export class ConversationsRepo {
       )
       .all();
 
-    return rows.map<ConversationSummary>((row: ConversationSummaryRow) => ({
-      id: row.id,
-      title: row.title,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-      lastMessagePreview: row.lastMessagePreview,
-      lastMessageAt: row.lastMessageAt,
-      defaultProviderId: row.defaultProviderId,
-      defaultModelId: row.defaultModelId
-    }));
+    return rows.map(mapConversationSummary);
   }
 
   create() {
@@ -209,6 +305,8 @@ export class ConversationsRepo {
         `
       )
       .run({ conversationId });
+
+    this.attachmentStore.deleteConversationAttachments(conversationId);
   }
 
   get(conversationId: string): ConversationDetail {
@@ -273,13 +371,152 @@ export class ConversationsRepo {
     };
   }
 
+  getPage(conversationId: string, request: ConversationPageRequest = {}): ConversationPage {
+    const conversation = this.db
+      .prepare<{ conversationId: string }, ConversationRow>(
+        `
+          SELECT
+            id,
+            title,
+            created_at,
+            updated_at,
+            default_provider_id,
+            default_model_id
+          FROM conversations
+          WHERE id = @conversationId
+        `
+      )
+      .get({ conversationId });
+
+    if (!conversation) {
+      throw new Error(`Conversation not found: ${conversationId}`);
+    }
+
+    const limit = Math.max(1, Math.min(Math.floor(request.limit ?? 100), 250));
+    const cursor = request.cursor ? decodeConversationPageCursor(request.cursor) : null;
+    const rows =
+      cursor == null
+        ? this.db
+            .prepare<{ conversationId: string; limit: number }, MessageRow>(
+              `
+                SELECT
+                  id,
+                  conversation_id,
+                  role,
+                  content,
+                  reasoning,
+                  parts_json,
+                  response_messages_json,
+                  status,
+                  provider_id,
+                  model_id,
+                  input_tokens,
+                  output_tokens,
+                  reasoning_tokens,
+                  latency_ms,
+                  error_code,
+                  created_at
+                FROM messages
+                WHERE conversation_id = @conversationId
+                ORDER BY created_at DESC, id DESC
+                LIMIT @limit
+              `
+            )
+            .all({ conversationId, limit: limit + 1 })
+        : this.db
+            .prepare<{ conversationId: string; limit: number; cursorCreatedAt: string; cursorId: string }, MessageRow>(
+              `
+                SELECT
+                  id,
+                  conversation_id,
+                  role,
+                  content,
+                  reasoning,
+                  parts_json,
+                  response_messages_json,
+                  status,
+                  provider_id,
+                  model_id,
+                  input_tokens,
+                  output_tokens,
+                  reasoning_tokens,
+                  latency_ms,
+                  error_code,
+                  created_at
+                FROM messages
+                WHERE conversation_id = @conversationId
+                  AND (
+                    created_at < @cursorCreatedAt
+                    OR (created_at = @cursorCreatedAt AND id < @cursorId)
+                  )
+                ORDER BY created_at DESC, id DESC
+                LIMIT @limit
+              `
+            )
+            .all({
+              conversationId,
+              limit: limit + 1,
+              cursorCreatedAt: cursor.createdAt,
+              cursorId: cursor.id
+            });
+
+    const hasOlder = rows.length > limit;
+    const pageRows = rows.slice(0, limit).reverse();
+    const messages = pageRows.map(mapMessage);
+    const oldestMessage = messages[0];
+
+    return {
+      conversation: {
+        id: conversation.id,
+        title: conversation.title,
+        createdAt: conversation.created_at,
+        updatedAt: conversation.updated_at,
+        defaultProviderId: conversation.default_provider_id,
+        defaultModelId: conversation.default_model_id
+      },
+      messages,
+      hasOlder,
+      nextCursor: hasOlder && oldestMessage
+        ? encodeConversationPageCursor({
+            createdAt: oldestMessage.createdAt,
+            id: oldestMessage.id
+          })
+        : null,
+      limit
+    };
+  }
+
+  getStats(): ConversationStats {
+    const counts = this.db
+      .prepare<[], { storedConversationCount: number; storedMessageCount: number }>(
+        `
+          SELECT
+            (SELECT COUNT(*) FROM conversations) AS storedConversationCount,
+            (SELECT COUNT(*) FROM messages) AS storedMessageCount
+        `
+      )
+      .get();
+    const pageCount = this.db.prepare<[], { page_count: number }>('PRAGMA page_count').get()?.page_count ?? 0;
+    const pageSize = this.db.prepare<[], { page_size: number }>('PRAGMA page_size').get()?.page_size ?? 0;
+
+    return {
+      storedConversationCount: counts?.storedConversationCount ?? 0,
+      storedMessageCount: counts?.storedMessageCount ?? 0,
+      databaseSizeBytes: pageCount * pageSize
+    };
+  }
+
   getModelHistory(conversationId: string) {
     const rows = this.db
-      .prepare<{ conversationId: string }, Pick<MessageRow, 'role' | 'content' | 'response_messages_json'>>(
+      .prepare<
+        { conversationId: string },
+        Pick<MessageRow, 'role' | 'content' | 'parts_json' | 'response_messages_json'>
+      >(
         `
           SELECT
             role,
             content,
+            parts_json,
             response_messages_json
           FROM messages
           WHERE conversation_id = @conversationId
@@ -292,9 +529,18 @@ export class ConversationsRepo {
 
     for (const row of rows) {
       const responseMessages = parseJson<ModelMessage[]>(row.response_messages_json);
+      const parts = parseJson<ChatMessagePart[]>(row.parts_json);
 
       if (row.role === 'assistant' && responseMessages?.length) {
         history.push(...responseMessages);
+        continue;
+      }
+
+      if (row.role === 'user' && parts?.length) {
+        history.push({
+          role: row.role,
+          content: buildModelMessageContent(parts, this.attachmentStore),
+        });
         continue;
       }
 

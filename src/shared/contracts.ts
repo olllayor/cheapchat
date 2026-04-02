@@ -1,4 +1,14 @@
-export type ProviderId = 'openrouter' | 'openai' | 'gemini';
+export type ProviderId = 'openrouter' | 'glm' | 'openai' | 'gemini';
+
+export type {
+  KeybindingCommand,
+  KeybindingContext,
+  KeybindingRule,
+  KeybindingShortcut,
+  KeybindingWhenIdentifier,
+  KeybindingWhenNode,
+  ResolvedKeybindingRule,
+} from './keybindings';
 
 export type CredentialStatus = 'missing' | 'valid' | 'invalid' | 'unknown';
 
@@ -31,6 +41,18 @@ export type ChatReasoningPart = {
   state?: ChatPartState;
 };
 
+export type ChatFilePart = {
+  id: string;
+  type: 'file';
+  mediaType: string;
+  url: string;
+  filename?: string;
+  sizeBytes?: number | null;
+  storageKey?: string | null;
+  previewWidth?: number | null;
+  previewHeight?: number | null;
+};
+
 export type ChatToolApproval = {
   id: string;
   approved?: boolean;
@@ -54,7 +76,7 @@ export type ChatToolPart = {
   approval?: ChatToolApproval;
 };
 
-export type ChatMessagePart = ChatTextPart | ChatReasoningPart | ChatToolPart;
+export type ChatMessagePart = ChatTextPart | ChatReasoningPart | ChatFilePart | ChatToolPart;
 
 export type ModelSummary = {
   id: string;
@@ -63,6 +85,7 @@ export type ModelSummary = {
   contextWindow: number | null;
   isFree: boolean;
   supportsVision: boolean;
+  supportsDocumentInput: boolean;
   supportsTools: boolean;
   archived: boolean;
   lastSyncedAt: string;
@@ -83,16 +106,43 @@ export type ProviderCredentialSummary = {
 };
 
 export type ThemeMode = 'light' | 'dark' | 'system';
+export type FontFamilyOverride = string | null;
 
-export type SettingsSection = 'general' | 'appearance' | 'usage';
+export const UI_FONT_SIZE_MIN = 13;
+export const UI_FONT_SIZE_MAX = 18;
+export const UI_FONT_SIZE_DEFAULT = 15;
+
+export const CODE_FONT_SIZE_MIN = 11;
+export const CODE_FONT_SIZE_MAX = 16;
+export const CODE_FONT_SIZE_DEFAULT = 13;
+
+export type SettingsSection = 'general' | 'appearance' | 'keyboard' | 'usage';
 
 export type SettingsAppearanceSummary = {
   themeMode: ThemeMode;
+  uiFontSize: number;
+  codeFontSize: number;
+  uiFontFamily: FontFamilyOverride;
+  codeFontFamily: FontFamilyOverride;
+};
+
+export const DEFAULT_SETTINGS_APPEARANCE: SettingsAppearanceSummary = {
+  themeMode: 'dark',
+  uiFontSize: UI_FONT_SIZE_DEFAULT,
+  codeFontSize: CODE_FONT_SIZE_DEFAULT,
+  uiFontFamily: null,
+  codeFontFamily: null
+};
+
+export type SettingsKeyboardSummary = {
+  keybindings: import('./keybindings').KeybindingRule[];
 };
 
 export type SettingsSummary = {
   providers: ProviderCredentialSummary[];
+  defaultProviderId: ProviderId | null;
   appearance: SettingsAppearanceSummary;
+  keyboard: SettingsKeyboardSummary;
   showFreeOnlyByDefault: boolean;
   modelCatalogLastSyncedAt: string | null;
   modelCatalogStale: boolean;
@@ -105,6 +155,8 @@ export type ConversationSummary = {
   createdAt: string;
   updatedAt: string;
   lastMessagePreview: string | null;
+  lastUserMessagePreview: string | null;
+  lastAssistantMessagePreview: string | null;
   lastMessageAt: string | null;
   defaultProviderId: ProviderId | null;
   defaultModelId: string | null;
@@ -140,9 +192,42 @@ export type ConversationDetail = {
   messages: ChatMessage[];
 };
 
+export type ConversationPageRequest = {
+  cursor?: string | null;
+  limit?: number;
+};
+
+export type ConversationPage = ConversationDetail & {
+  hasOlder: boolean;
+  nextCursor: string | null;
+  limit: number;
+};
+
+export type ConversationStats = {
+  storedConversationCount: number;
+  storedMessageCount: number;
+  databaseSizeBytes: number;
+};
+
+export type ChatInputTextPart = {
+  type: 'text';
+  text: string;
+};
+
+export type ChatInputFilePart = {
+  type: 'file';
+  mediaType: string;
+  url: string;
+  filename?: string;
+  sizeBytes?: number | null;
+};
+
+export type ChatInputPart = ChatInputTextPart | ChatInputFilePart;
+
 export type ChatInputMessage = {
   role: MessageRole;
   content: string;
+  parts?: ChatInputPart[];
 };
 
 export type ChatStartRequest = {
@@ -287,16 +372,48 @@ export type UsageSummary = {
     outputTokens: number;
     reasoningTokens: number;
     estimatedCostUsd: number | null;
+    storedConversationCount: number;
+    storedMessageCount: number;
+    databaseSizeBytes: number;
     loadedConversationCount: number;
     loadedMessageCount: number;
+    rendererHeapBytes: number | null;
+    mainProcessRssBytes: number | null;
   };
   providers: UsageProviderSummary[];
+};
+
+export type DiagnosticsSnapshot = {
+  collectedAt: string;
+  build: {
+    appVersion: string;
+    electronVersion: string | null;
+    chromeVersion: string | null;
+    nodeVersion: string;
+    platform: string;
+    arch: string;
+  };
+  mainProcess: {
+    rssBytes: number;
+    heapTotalBytes: number;
+    heapUsedBytes: number;
+    externalBytes: number;
+    arrayBuffersBytes: number;
+  };
+  databaseSizeBytes: number;
 };
 
 export type SettingsUpdateRequest = {
   showFreeOnlyByDefault?: boolean;
   appearance?: {
     themeMode?: ThemeMode;
+    uiFontSize?: number;
+    codeFontSize?: number;
+    uiFontFamily?: FontFamilyOverride;
+    codeFontFamily?: FontFamilyOverride;
+  };
+  keyboard?: {
+    keybindings?: import('./keybindings').KeybindingRule[];
   };
 };
 
@@ -351,8 +468,8 @@ export type AppUpdateSnapshot =
 export type RendererApi = {
   settings: {
     getSummary: () => Promise<SettingsSummary>;
-    saveOpenRouterKey: (secret: string) => Promise<SettingsSummary>;
-    validateOpenRouterKey: () => Promise<SettingsSummary>;
+    saveProviderKey: (providerId: ProviderId, secret: string) => Promise<SettingsSummary>;
+    validateProviderKey: (providerId: ProviderId, secret?: string) => Promise<SettingsSummary>;
     updatePreferences: (patch: SettingsUpdateRequest) => Promise<SettingsSummary>;
   };
   models: {
@@ -363,12 +480,17 @@ export type RendererApi = {
     list: () => Promise<ConversationSummary[]>;
     create: () => Promise<ConversationSummary>;
     get: (conversationId: string) => Promise<ConversationDetail>;
+    getPage: (conversationId: string, request?: ConversationPageRequest) => Promise<ConversationPage>;
+    getStats: () => Promise<ConversationStats>;
     delete: (conversationId: string) => Promise<void>;
   };
   chat: {
     start: (request: ChatStartRequest) => Promise<ChatStartResponse>;
     abort: (requestId: string) => Promise<void>;
     subscribe: (listener: (event: StreamEvent) => void) => () => void;
+  };
+  diagnostics: {
+    getSnapshot: () => Promise<DiagnosticsSnapshot>;
   };
   updates: {
     getState: () => Promise<AppUpdateSnapshot>;

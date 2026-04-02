@@ -15,6 +15,7 @@ import {
 } from '@/components/ai-elements/model-selector';
 
 import type { ModelSummary } from '../../shared/contracts';
+import { PROVIDER_METADATA } from '../../shared/providerMetadata';
 
 type ModelSelectorProps = {
   models: ModelSummary[];
@@ -27,9 +28,8 @@ type ModelSelectorProps = {
   isRefreshing?: boolean;
 };
 
-const extractNamespace = (modelId: string): string => {
-  const parts = modelId.split('/');
-  return parts.length > 1 ? parts[0] : 'other';
+const extractNamespace = (model: ModelSummary): string => {
+  return PROVIDER_METADATA[model.providerId]?.label ?? model.providerId;
 };
 
 const extractModelName = (modelId: string): string => {
@@ -61,7 +61,7 @@ export function ModelSelector({
     const groups = new Map<string, ModelSummary[]>();
 
     for (const model of filtered) {
-      const namespace = extractNamespace(model.id);
+      const namespace = extractNamespace(model);
       if (!groups.has(namespace)) groups.set(namespace, []);
       groups.get(namespace)!.push(model);
     }
@@ -88,12 +88,12 @@ export function ModelSelector({
           ref={triggerRef}
           type="button"
           disabled={disabled}
-          className="flex max-w-[260px] items-center gap-1.5 rounded-full border border-transparent px-2.5 py-1.5 text-xs font-medium transition hover:border-white/6 hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-8 max-w-[260px] items-center gap-1.5 rounded-full border border-transparent px-2.5 text-[12px] font-medium text-white/72 transition hover:border-white/6 hover:bg-white/[0.04] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
           aria-expanded={open}
           aria-haspopup="listbox"
         >
           {providerSlug && <ModelSelectorLogo provider={providerSlug} />}
-          <ModelSelectorName className="truncate text-text-tertiary">
+          <ModelSelectorName className="truncate text-current">
             {selectedModel ? extractModelName(selectedModel.id) : 'Model'}
           </ModelSelectorName>
           <ChevronDown className={`h-3 w-3 text-text-faint transition-transform ${open ? 'rotate-180' : ''}`} />

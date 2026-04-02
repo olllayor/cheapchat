@@ -1,4 +1,6 @@
 import type {
+  ChatFilePart,
+  ChatInputPart,
   ChatMessagePart,
   ChatReasoningPart,
   ChatTextPart,
@@ -45,6 +47,64 @@ export function buildFallbackMessageParts({
   }
 
   return parts;
+}
+
+export function buildUserMessageParts({
+  content,
+  parts,
+  idPrefix = 'user',
+}: {
+  content: string;
+  parts?: ChatInputPart[];
+  idPrefix?: string;
+}): ChatMessagePart[] {
+  if (!parts?.length) {
+    return content.trim()
+      ? [{ id: `${idPrefix}-text`, type: 'text', text: content, state: 'done' }]
+      : [];
+  }
+
+  const builtParts: ChatMessagePart[] = [];
+
+  for (const [index, part] of parts.entries()) {
+    if (part.type === 'text') {
+      const trimmed = part.text.trim();
+      if (!trimmed) {
+        continue;
+      }
+
+      builtParts.push({
+        id: `${idPrefix}-text-${index}`,
+        type: 'text',
+        text: part.text,
+        state: 'done',
+      });
+      continue;
+    }
+
+    const filePart: ChatFilePart = {
+      id: `${idPrefix}-file-${index}`,
+      type: 'file',
+      filename: part.filename,
+      mediaType: part.mediaType,
+      sizeBytes: part.sizeBytes ?? null,
+      storageKey: null,
+      url: part.url,
+    };
+
+    builtParts.push(filePart);
+  }
+
+  if (builtParts.length === 0 && content.trim()) {
+    builtParts.push({
+      id: `${idPrefix}-text`,
+      type: 'text',
+      text: content,
+      state: 'done',
+    });
+  }
+
+  return builtParts;
 }
 
 function appendOrCreateTextPart(

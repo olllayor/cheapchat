@@ -37,9 +37,11 @@ import { Spinner } from "@/components/ui/spinner";
 import {
   Tooltip,
   TooltipContent,
+  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { normalizeAttachmentMediaType } from "../../../shared/attachments";
 import type { ChatStatus, FileUIPart, SourceDocumentUIPart } from "ai";
 import {
   CornerDownLeftIcon,
@@ -179,13 +181,18 @@ const captureScreenshot = async (): Promise<File | null> => {
 // ============================================================================
 
 export interface AttachmentsContext {
-  files: (FileUIPart & { id: string })[];
+  files: PromptInputAttachment[];
   add: (files: File[] | FileList) => void;
   remove: (id: string) => void;
   clear: () => void;
   openFileDialog: () => void;
   fileInputRef: RefObject<HTMLInputElement | null>;
 }
+
+export type PromptInputAttachment = FileUIPart & {
+  id: string;
+  sizeBytes?: number;
+};
 
 export interface TextInputContext {
   value: string;
@@ -255,7 +262,7 @@ export const PromptInputProvider = ({
 
   // ----- attachments state (global when wrapped)
   const [attachmentFiles, setAttachmentFiles] = useState<
-    (FileUIPart & { id: string })[]
+    PromptInputAttachment[]
   >([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   // oxlint-disable-next-line eslint(no-empty-function)
@@ -272,7 +279,8 @@ export const PromptInputProvider = ({
       ...incoming.map((file) => ({
         filename: file.name,
         id: nanoid(),
-        mediaType: file.type,
+        mediaType: normalizeAttachmentMediaType(file.type, file.name),
+        sizeBytes: file.size,
         type: "file" as const,
         url: URL.createObjectURL(file),
       })),
@@ -483,7 +491,7 @@ export const PromptInputActionAddScreenshot = ({
 
 export interface PromptInputMessage {
   text: string;
-  files: FileUIPart[];
+  files: PromptInputAttachment[];
 }
 
 export type PromptInputProps = Omit<
@@ -533,7 +541,7 @@ export const PromptInput = ({
   const formRef = useRef<HTMLFormElement | null>(null);
 
   // ----- Local attachments (only used when no provider)
-  const [items, setItems] = useState<(FileUIPart & { id: string })[]>([]);
+  const [items, setItems] = useState<PromptInputAttachment[]>([]);
   const files = usingProvider ? controller.attachments.files : items;
 
   // ----- Local referenced sources (always local to PromptInput)
@@ -558,6 +566,8 @@ export const PromptInput = ({
         return true;
       }
 
+      const fileMediaType = normalizeAttachmentMediaType(f.type, f.name);
+
       const patterns = accept
         .split(",")
         .map((s) => s.trim())
@@ -567,9 +577,9 @@ export const PromptInput = ({
         if (pattern.endsWith("/*")) {
           // e.g: image/* -> image/
           const prefix = pattern.slice(0, -1);
-          return f.type.startsWith(prefix);
+          return fileMediaType.startsWith(prefix);
         }
-        return f.type === pattern;
+        return fileMediaType === pattern;
       });
     },
     [accept]
@@ -610,12 +620,13 @@ export const PromptInput = ({
             message: "Too many files. Some were not added.",
           });
         }
-        const next: (FileUIPart & { id: string })[] = [];
+        const next: PromptInputAttachment[] = [];
         for (const file of capped) {
           next.push({
             filename: file.name,
             id: nanoid(),
-            mediaType: file.type,
+            mediaType: normalizeAttachmentMediaType(file.type, file.name),
+            sizeBytes: file.size,
             type: "file",
             url: URL.createObjectURL(file),
           });
@@ -861,8 +872,8 @@ export const PromptInput = ({
 
       try {
         // Convert blob URLs to data URLs asynchronously
-        const convertedFiles: FileUIPart[] = await Promise.all(
-          files.map(async ({ id: _id, ...item }) => {
+        const convertedFiles: PromptInputAttachment[] = await Promise.all(
+          files.map(async (item) => {
             if (item.url?.startsWith("blob:")) {
               const dataUrl = await convertBlobUrlToDataUrl(item.url);
               // If conversion failed, keep the original blob URL
@@ -946,7 +957,7 @@ export const PromptInputBody = ({
   className,
   ...props
 }: PromptInputBodyProps) => (
-  <div className={cn("contents", className)} {...props} />
+  <div className={cn("w-full min-w-0", className)} {...props} />
 );
 
 export type PromptInputTextareaProps = ComponentProps<
@@ -1055,7 +1066,7 @@ export const PromptInputTextarea = ({
 
   return (
     <InputGroupTextarea
-      className={cn("field-sizing-content max-h-48 min-h-16", className)}
+      className={cn("field-sizing-content max-h-48 min-h-[32px]", className)}
       name="message"
       onCompositionEnd={handleCompositionEnd}
       onCompositionStart={handleCompositionStart}
@@ -1154,15 +1165,17 @@ export const PromptInputButton = ({
   const side = typeof tooltip === "string" ? "top" : (tooltip.side ?? "top");
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent side={side}>
-        {tooltipContent}
-        {shortcut && (
-          <span className="ml-2 text-muted-foreground">{shortcut}</span>
-        )}
-      </TooltipContent>
-    </Tooltip>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>{button}</TooltipTrigger>
+        <TooltipContent side={side}>
+          {tooltipContent}
+          {shortcut && (
+            <span className="ml-2 text-muted-foreground">{shortcut}</span>
+          )}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 };
 
