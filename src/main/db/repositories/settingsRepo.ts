@@ -1,15 +1,13 @@
 import {
-  CODE_FONT_FAMILY_OPTIONS,
   CODE_FONT_SIZE_DEFAULT,
   CODE_FONT_SIZE_MAX,
   CODE_FONT_SIZE_MIN,
   DEFAULT_SETTINGS_APPEARANCE,
-  UI_FONT_FAMILY_OPTIONS,
   UI_FONT_SIZE_DEFAULT,
   UI_FONT_SIZE_MAX,
   UI_FONT_SIZE_MIN,
 } from '../../../shared/contracts';
-import type { CodeFontFamily, CredentialStatus, ProviderCredentialSummary, ProviderId, ThemeMode, UiFontFamily } from '../../../shared/contracts';
+import type { CredentialStatus, FontFamilyOverride, ProviderCredentialSummary, ProviderId, ThemeMode } from '../../../shared/contracts';
 import { PROVIDER_ORDER } from '../../../shared/providerMetadata';
 import type { SqliteDatabase } from '../client';
 
@@ -31,6 +29,15 @@ export class SettingsRepo {
     }
 
     return Math.min(max, Math.max(min, Math.round(value)));
+  }
+
+  private normalizeFontFamily(value: unknown): FontFamilyOverride {
+    if (typeof value !== 'string') {
+      return null;
+    }
+
+    const sanitized = value.replace(/[;\n\r{}]/g, ' ').trim().replace(/\s+/g, ' ');
+    return sanitized.length > 0 ? sanitized : null;
   }
 
   private getJsonSetting<T>(key: string, fallback: T) {
@@ -110,25 +117,22 @@ export class SettingsRepo {
     );
   }
 
-  getUiFontFamily(): UiFontFamily {
-    const value = this.getJsonSetting<UiFontFamily>('uiFontFamily', DEFAULT_SETTINGS_APPEARANCE.uiFontFamily);
-    return UI_FONT_FAMILY_OPTIONS.includes(value) ? value : DEFAULT_SETTINGS_APPEARANCE.uiFontFamily;
+  getUiFontFamily(): FontFamilyOverride {
+    return this.normalizeFontFamily(this.getJsonSetting<FontFamilyOverride>('uiFontFamily', DEFAULT_SETTINGS_APPEARANCE.uiFontFamily));
   }
 
-  setUiFontFamily(value: UiFontFamily) {
-    this.setJsonSetting('uiFontFamily', UI_FONT_FAMILY_OPTIONS.includes(value) ? value : DEFAULT_SETTINGS_APPEARANCE.uiFontFamily);
+  setUiFontFamily(value: FontFamilyOverride) {
+    this.setJsonSetting('uiFontFamily', this.normalizeFontFamily(value));
   }
 
-  getCodeFontFamily(): CodeFontFamily {
-    const value = this.getJsonSetting<CodeFontFamily>('codeFontFamily', DEFAULT_SETTINGS_APPEARANCE.codeFontFamily);
-    return CODE_FONT_FAMILY_OPTIONS.includes(value) ? value : DEFAULT_SETTINGS_APPEARANCE.codeFontFamily;
-  }
-
-  setCodeFontFamily(value: CodeFontFamily) {
-    this.setJsonSetting(
-      'codeFontFamily',
-      CODE_FONT_FAMILY_OPTIONS.includes(value) ? value : DEFAULT_SETTINGS_APPEARANCE.codeFontFamily
+  getCodeFontFamily(): FontFamilyOverride {
+    return this.normalizeFontFamily(
+      this.getJsonSetting<FontFamilyOverride>('codeFontFamily', DEFAULT_SETTINGS_APPEARANCE.codeFontFamily)
     );
+  }
+
+  setCodeFontFamily(value: FontFamilyOverride) {
+    this.setJsonSetting('codeFontFamily', this.normalizeFontFamily(value));
   }
 
   syncSecretPresence(providerId: ProviderId, hasSecret: boolean) {

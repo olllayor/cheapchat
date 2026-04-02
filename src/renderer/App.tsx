@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
 import { DEFAULT_SETTINGS_APPEARANCE } from '../shared/contracts';
-import type { AppUpdateSnapshot, StreamEvent, ThemeMode } from '../shared/contracts';
+import type { AppUpdateSnapshot, FontFamilyOverride, StreamEvent, ThemeMode } from '../shared/contracts';
 import { PROVIDER_METADATA } from '../shared/providerMetadata';
 import { ChatWindow } from './components/ChatWindow';
 import { Composer } from './components/Composer';
@@ -56,6 +56,49 @@ function resolveThemeMode(mode: ThemeMode, prefersDark: boolean) {
   }
 
   return mode;
+}
+
+function toCssFontFamilyList(value: string) {
+  const genericFamilies = new Set([
+    'serif',
+    'sans-serif',
+    'monospace',
+    'cursive',
+    'fantasy',
+    'system-ui',
+    'ui-serif',
+    'ui-sans-serif',
+    'ui-monospace',
+    'emoji',
+    'math',
+    'fangsong',
+  ]);
+
+  return value
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      if (
+        part.startsWith('"') ||
+        part.startsWith("'") ||
+        genericFamilies.has(part.toLowerCase())
+      ) {
+        return part;
+      }
+
+      return /[^a-zA-Z0-9_-]/.test(part) ? JSON.stringify(part) : part;
+    })
+    .join(', ');
+}
+
+function buildFontFamilyValue(override: FontFamilyOverride, fallbackVariable: '--font-ui-system' | '--font-mono-system') {
+  const normalized = override?.trim();
+  if (!normalized) {
+    return `var(${fallbackVariable})`;
+  }
+
+  return `${toCssFontFamilyList(normalized)}, var(${fallbackVariable})`;
 }
 
 export default function App() {
@@ -238,10 +281,10 @@ export default function App() {
 
   useEffect(() => {
     const root = document.documentElement;
-    root.dataset.uiFontFamily = appearance.uiFontFamily;
-    root.dataset.codeFontFamily = appearance.codeFontFamily;
     root.style.setProperty('--ui-font-size', `${appearance.uiFontSize}px`);
     root.style.setProperty('--code-font-size', `${appearance.codeFontSize}px`);
+    root.style.setProperty('--font-ui-family', buildFontFamilyValue(appearance.uiFontFamily, '--font-ui-system'));
+    root.style.setProperty('--font-code-mono', buildFontFamilyValue(appearance.codeFontFamily, '--font-mono-system'));
   }, [appearance.codeFontFamily, appearance.codeFontSize, appearance.uiFontFamily, appearance.uiFontSize]);
 
   if (bootstrapping) return <LoadingScreen />;

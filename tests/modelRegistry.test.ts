@@ -122,8 +122,8 @@ test('ModelRegistry refresh merges provider catalogs and prefers configured prov
   assert.equal(summary.appearance.themeMode, 'dark');
   assert.equal(summary.appearance.uiFontSize, 15);
   assert.equal(summary.appearance.codeFontSize, 13);
-  assert.equal(summary.appearance.uiFontFamily, 'dm-sans');
-  assert.equal(summary.appearance.codeFontFamily, 'system');
+  assert.equal(summary.appearance.uiFontFamily, null);
+  assert.equal(summary.appearance.codeFontFamily, null);
 });
 
 test('ModelRegistry validateProviderKey updates provider credential status', async (t) => {

@@ -49,11 +49,11 @@ test('SettingsRepo stores and normalizes typography preferences', (t) => {
 
   settingsRepo.setUiFontSize(99);
   settingsRepo.setCodeFontSize(2);
-  settingsRepo.setUiFontFamily('geist');
-  settingsRepo.setCodeFontFamily('geist-mono');
+  settingsRepo.setUiFontFamily('OpenAI Sans');
+  settingsRepo.setCodeFontFamily('Berkeley Mono');
 
   assert.equal(settingsRepo.getUiFontSize(), 18);
   assert.equal(settingsRepo.getCodeFontSize(), 11);
-  assert.equal(settingsRepo.getUiFontFamily(), 'geist');
-  assert.equal(settingsRepo.getCodeFontFamily(), 'geist-mono');
+  assert.equal(settingsRepo.getUiFontFamily(), 'OpenAI Sans');
+  assert.equal(settingsRepo.getCodeFontFamily(), 'Berkeley Mono');
 });

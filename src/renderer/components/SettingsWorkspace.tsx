@@ -9,20 +9,20 @@ import {
   TimerIcon,
   UpdateIcon,
 } from '@radix-ui/react-icons';
-import type { CSSProperties, PropsWithChildren } from 'react';
+import { useEffect, useState } from 'react';
+import type { ChangeEvent, CSSProperties, KeyboardEvent, FocusEvent, PropsWithChildren } from 'react';
 import { costFromUsage } from 'tokenlens';
 
 import type {
   AppUpdateSnapshot,
-  CodeFontFamily,
   ConversationPage,
   ConversationStats,
   DiagnosticsSnapshot,
+  FontFamilyOverride,
   ProviderId,
   SettingsSection,
   SettingsSummary,
   ThemeMode,
-  UiFontFamily,
   UsageProviderSummary,
   UsageSummary,
 } from '../../shared/contracts';
@@ -54,8 +54,8 @@ type SettingsWorkspaceProps = {
   onThemeModeChange: (mode: ThemeMode) => void;
   onUiFontSizeChange: (value: number) => void;
   onCodeFontSizeChange: (value: number) => void;
-  onUiFontFamilyChange: (value: UiFontFamily) => void;
-  onCodeFontFamilyChange: (value: CodeFontFamily) => void;
+  onUiFontFamilyChange: (value: FontFamilyOverride) => void;
+  onCodeFontFamilyChange: (value: FontFamilyOverride) => void;
   onToggleFreeModels: (value: boolean) => void;
   onUpdateAction: () => void;
   onRefreshModels: () => void;
@@ -396,8 +396,8 @@ function AppearancePage({
   onThemeModeChange: (mode: ThemeMode) => void;
   onUiFontSizeChange: (value: number) => void;
   onCodeFontSizeChange: (value: number) => void;
-  onUiFontFamilyChange: (value: UiFontFamily) => void;
-  onCodeFontFamilyChange: (value: CodeFontFamily) => void;
+  onUiFontFamilyChange: (value: FontFamilyOverride) => void;
+  onCodeFontFamilyChange: (value: FontFamilyOverride) => void;
 }) {
   const appearance = settings?.appearance ?? DEFAULT_SETTINGS_APPEARANCE;
   const themeMode = appearance.themeMode;
@@ -433,24 +433,17 @@ function AppearancePage({
           />
         </SettingsRow>
         <SettingsRow title="UI font family" description="Override the Atlas interface typeface.">
-          <SelectControl
+          <FontFamilyField
             value={appearance.uiFontFamily}
-            onChange={(value) => onUiFontFamilyChange(value as UiFontFamily)}
-            options={[
-              { value: 'dm-sans', label: 'DM Sans' },
-              { value: 'geist', label: 'Geist Sans' },
-              { value: 'system', label: 'System UI' },
-            ]}
+            placeholder="System font"
+            onCommit={onUiFontFamilyChange}
           />
         </SettingsRow>
         <SettingsRow title="Code font family" description="Override the typeface used for code surfaces.">
-          <SelectControl
+          <FontFamilyField
             value={appearance.codeFontFamily}
-            onChange={(value) => onCodeFontFamilyChange(value as CodeFontFamily)}
-            options={[
-              { value: 'system', label: 'System Mono' },
-              { value: 'geist-mono', label: 'Geist Mono' },
-            ]}
+            placeholder="System monospace"
+            onCommit={onCodeFontFamilyChange}
           />
         </SettingsRow>
       </SettingsGroup>
@@ -649,27 +642,57 @@ function NumberStepper({
   );
 }
 
-function SelectControl({
+function FontFamilyField({
   value,
-  onChange,
-  options,
+  placeholder,
+  onCommit,
 }: {
-  value: string;
-  onChange: (value: string) => void;
-  options: Array<{ value: string; label: string }>;
+  value: FontFamilyOverride;
+  placeholder: string;
+  onCommit: (value: FontFamilyOverride) => void;
 }) {
+  const [draft, setDraft] = useState(value ?? '');
+
+  useEffect(() => {
+    setDraft(value ?? '');
+  }, [value]);
+
+  const commitValue = (rawValue: string) => {
+    const normalized = rawValue.trim();
+    onCommit(normalized.length > 0 ? normalized : null);
+  };
+
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setDraft(event.target.value);
+  };
+
+  const handleBlur = (event: FocusEvent<HTMLInputElement>) => {
+    commitValue(event.currentTarget.value);
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      commitValue(event.currentTarget.value);
+      event.currentTarget.blur();
+    }
+
+    if (event.key === 'Escape') {
+      setDraft(value ?? '');
+      event.currentTarget.blur();
+    }
+  };
+
   return (
-    <select
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      className="h-9 min-w-[190px] rounded-[10px] border border-border-default bg-bg-subtle px-3 text-[13px] font-medium text-text-primary outline-none transition hover:bg-bg-hover focus:border-border-strong"
-    >
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+    <input
+      type="text"
+      value={draft}
+      placeholder={placeholder}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      className="h-9 min-w-[190px] rounded-[10px] border border-border-default bg-bg-subtle px-3 text-[13px] font-medium text-text-primary outline-none transition hover:bg-bg-hover focus:border-border-strong placeholder:text-text-muted"
+      spellCheck={false}
+    />
   );
 }
 

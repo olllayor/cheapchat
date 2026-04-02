@@ -47,29 +47,30 @@ export function registerSettingsIpc({ settingsRepo, modelRegistry, keychain }: S
     IPC_CHANNELS.settingsUpdatePreferences,
     (event, patch: SettingsUpdateRequest) => {
       assertTrustedSender(event);
+      const appearancePatch = patch?.appearance;
 
       if (typeof patch?.showFreeOnlyByDefault === 'boolean') {
         settingsRepo.setShowFreeOnlyByDefault(patch.showFreeOnlyByDefault);
       }
 
-      if (patch?.appearance?.themeMode) {
-        settingsRepo.setThemeMode(patch.appearance.themeMode);
+      if (appearancePatch?.themeMode) {
+        settingsRepo.setThemeMode(appearancePatch.themeMode);
       }
 
-      if (typeof patch?.appearance?.uiFontSize === 'number') {
-        settingsRepo.setUiFontSize(patch.appearance.uiFontSize);
+      if (typeof appearancePatch?.uiFontSize === 'number') {
+        settingsRepo.setUiFontSize(appearancePatch.uiFontSize);
       }
 
-      if (typeof patch?.appearance?.codeFontSize === 'number') {
-        settingsRepo.setCodeFontSize(patch.appearance.codeFontSize);
+      if (typeof appearancePatch?.codeFontSize === 'number') {
+        settingsRepo.setCodeFontSize(appearancePatch.codeFontSize);
       }
 
-      if (patch?.appearance?.uiFontFamily) {
-        settingsRepo.setUiFontFamily(patch.appearance.uiFontFamily);
+      if (appearancePatch && 'uiFontFamily' in appearancePatch) {
+        settingsRepo.setUiFontFamily(appearancePatch.uiFontFamily ?? null);
       }
 
-      if (patch?.appearance?.codeFontFamily) {
-        settingsRepo.setCodeFontFamily(patch.appearance.codeFontFamily);
+      if (appearancePatch && 'codeFontFamily' in appearancePatch) {
+        settingsRepo.setCodeFontFamily(appearancePatch.codeFontFamily ?? null);
       }
 
       return modelRegistry.getSettingsSummary();

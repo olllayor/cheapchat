@@ -96,12 +96,7 @@ export type ProviderCredentialSummary = {
 };
 
 export type ThemeMode = 'light' | 'dark' | 'system';
-
-export const UI_FONT_FAMILY_OPTIONS = ['dm-sans', 'geist', 'system'] as const;
-export type UiFontFamily = (typeof UI_FONT_FAMILY_OPTIONS)[number];
-
-export const CODE_FONT_FAMILY_OPTIONS = ['system', 'geist-mono'] as const;
-export type CodeFontFamily = (typeof CODE_FONT_FAMILY_OPTIONS)[number];
+export type FontFamilyOverride = string | null;
 
 export const UI_FONT_SIZE_MIN = 13;
 export const UI_FONT_SIZE_MAX = 18;
@@ -117,16 +112,16 @@ export type SettingsAppearanceSummary = {
   themeMode: ThemeMode;
   uiFontSize: number;
   codeFontSize: number;
-  uiFontFamily: UiFontFamily;
-  codeFontFamily: CodeFontFamily;
+  uiFontFamily: FontFamilyOverride;
+  codeFontFamily: FontFamilyOverride;
 };
 
 export const DEFAULT_SETTINGS_APPEARANCE: SettingsAppearanceSummary = {
   themeMode: 'dark',
   uiFontSize: UI_FONT_SIZE_DEFAULT,
   codeFontSize: CODE_FONT_SIZE_DEFAULT,
-  uiFontFamily: 'dm-sans',
-  codeFontFamily: 'system'
+  uiFontFamily: null,
+  codeFontFamily: null
 };
 
 export type SettingsSummary = {
@@ -399,8 +394,8 @@ export type SettingsUpdateRequest = {
     themeMode?: ThemeMode;
     uiFontSize?: number;
     codeFontSize?: number;
-    uiFontFamily?: UiFontFamily;
-    codeFontFamily?: CodeFontFamily;
+    uiFontFamily?: FontFamilyOverride;
+    codeFontFamily?: FontFamilyOverride;
   };
 };
 
