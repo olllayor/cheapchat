@@ -315,13 +315,17 @@ export default function App() {
       }
 
       setCommandPaletteOpen(false);
-      setSidebarCollapsed((current) => !current);
+      runViewTransition(() => {
+        setSidebarCollapsed((current) => !current);
+      });
       return;
     }
 
     if (command === 'settings.open') {
       setCommandPaletteOpen(false);
-      openSettings('general');
+      runViewTransition(() => {
+        openSettings('general');
+      });
       return;
     }
 

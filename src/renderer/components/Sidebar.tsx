@@ -80,6 +80,7 @@ export function Sidebar({
           ? '-mr-px w-[72px] bg-transparent'
           : 'border-r border-white/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.022),rgba(255,255,255,0)_16%),linear-gradient(180deg,#0d1015,#090b0f)]'
       } ${collapsed ? '' : 'w-[284px]'}`}
+      style={{ viewTransitionName: 'app-sidebar' }}
     >
       {!collapsed ? (
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.03),transparent_34%)]" />

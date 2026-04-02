@@ -1,18 +1,34 @@
-type DocumentWithViewTransition = Document & {
-  startViewTransition?: (callback: () => void | Promise<void>) => { finished: Promise<void> };
+import { flushSync } from 'react-dom';
+
+type ViewTransitionDocument = Document & {
+  startViewTransition?: (callback: () => void | Promise<void>) => {
+    finished: Promise<void>;
+    ready: Promise<void>;
+    updateCallbackDone: Promise<void>;
+  };
 };
 
-export function runViewTransition(callback: () => void) {
-  const documentWithViewTransition = document as DocumentWithViewTransition;
+function prefersReducedMotion() {
+  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
 
-  if (typeof documentWithViewTransition.startViewTransition !== 'function') {
-    callback();
+export function runViewTransition(update: () => void) {
+  if (typeof document === 'undefined' || prefersReducedMotion()) {
+    update();
     return;
   }
 
-  void documentWithViewTransition.startViewTransition(() => {
-    callback();
-  }).finished.catch(() => {
+  const viewTransitionDocument = document as ViewTransitionDocument;
+  if (typeof viewTransitionDocument.startViewTransition !== 'function') {
+    update();
+    return;
+  }
+
+  const transition = viewTransitionDocument.startViewTransition(() => {
+    flushSync(update);
+  });
+
+  void transition.finished.catch(() => {
     // Ignore transition failures and preserve the state update.
   });
 }
