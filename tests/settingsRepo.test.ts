@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
-import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 
 import type { SqliteDatabase } from '../src/main/db/client.js';
 import { SettingsRepo } from '../src/main/db/repositories/settingsRepo.js';
 import { applySchema } from '../src/main/db/schema.js';
+import { getDefaultKeybindingRules } from '../src/shared/keybindings.js';
 
 function createDatabase() {
   const tempDir = mkdtempSync(join(tmpdir(), 'atlas-settings-repo-'));
@@ -33,14 +34,15 @@ function createDatabase() {
   applySchema(database);
 
   return {
-    tempDir,
+    database,
     raw,
-    settingsRepo: new SettingsRepo(database),
+    tempDir,
   };
 }
 
 test('SettingsRepo stores and normalizes typography preferences', (t) => {
-  const { tempDir, raw, settingsRepo } = createDatabase();
+  const { database, raw, tempDir } = createDatabase();
+  const settingsRepo = new SettingsRepo(database);
 
   t.after(() => {
     raw.close();
@@ -56,4 +58,49 @@ test('SettingsRepo stores and normalizes typography preferences', (t) => {
   assert.equal(settingsRepo.getCodeFontSize(), 11);
   assert.equal(settingsRepo.getUiFontFamily(), 'OpenAI Sans');
   assert.equal(settingsRepo.getCodeFontFamily(), 'Berkeley Mono');
+});
+
+test('SettingsRepo stores and restores keybindings', (t) => {
+  const { database, raw, tempDir } = createDatabase();
+  const settingsRepo = new SettingsRepo(database);
+
+  t.after(() => {
+    raw.close();
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  const custom = getDefaultKeybindingRules();
+  custom[0] = {
+    ...custom[0]!,
+    shortcut: {
+      ...custom[0]!.shortcut,
+      key: 'p',
+    },
+  };
+
+  settingsRepo.setKeybindings(custom);
+
+  assert.deepEqual(settingsRepo.getKeybindings(), custom);
+});
+
+test('SettingsRepo falls back to defaults when stored keybindings are invalid', (t) => {
+  const { database, raw, tempDir } = createDatabase();
+  const settingsRepo = new SettingsRepo(database);
+
+  t.after(() => {
+    raw.close();
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  raw
+    .prepare(
+      `
+        INSERT INTO app_settings (key, value)
+        VALUES ('keybindings', '{not valid json}')
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+      `,
+    )
+    .run();
+
+  assert.deepEqual(settingsRepo.getKeybindings(), getDefaultKeybindingRules());
 });

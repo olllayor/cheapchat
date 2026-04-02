@@ -1,5 +1,5 @@
 import { PlusIcon } from '@radix-ui/react-icons';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   ATTACHMENT_ACCEPT_ATTRIBUTE,
@@ -12,10 +12,16 @@ import { getTextContentFromParts } from '../../shared/messageParts';
 import { ModelSelector } from './ModelSelector';
 import {
   Attachment,
+  AttachmentHoverCard,
+  AttachmentHoverCardContent,
+  AttachmentHoverCardTrigger,
   AttachmentInfo,
   AttachmentPreview,
   AttachmentRemove,
   Attachments,
+  getAttachmentLabel,
+  getMediaCategory,
+  type AttachmentData,
 } from './ai-elements/attachments';
 import {
   Context,
@@ -45,15 +51,75 @@ type ComposerProps = {
   isStreaming: boolean;
   models: ModelSummary[];
   selectedModelId: string | null;
+  modelPickerOpen: boolean;
+  composerFocusNonce: number;
   detail: ConversationDetail | null;
   draft: DraftStateLike | null;
   onChange: (value: string) => void;
   onSend: (message: PromptInputMessage) => Promise<void> | void;
   onAbort: () => void;
   onSelectModel: (modelId: string) => void;
+  onModelPickerOpenChange: (open: boolean) => void;
+  onComposerFocusChange: (focused: boolean) => void;
   onRefreshModels?: () => void;
   isRefreshingModels?: boolean;
 };
+
+const ComposerAttachmentItem = memo(
+  ({
+    attachment,
+    onRemove,
+  }: {
+    attachment: AttachmentData;
+    onRemove: (id: string) => void;
+  }) => {
+    const handleRemove = useCallback(() => onRemove(attachment.id), [attachment.id, onRemove]);
+    const mediaCategory = getMediaCategory(attachment);
+    const label = getAttachmentLabel(attachment);
+    const isImage = mediaCategory === 'image';
+    const [thumbnailFailed, setThumbnailFailed] = useState(false);
+    const inlinePreview =
+      isImage && attachment.type === 'file' && attachment.url && !thumbnailFailed ? (
+        <img
+          alt={label}
+          className="size-full rounded-[6px] object-cover"
+          height={18}
+          onError={() => setThumbnailFailed(true)}
+          src={attachment.url}
+          width={18}
+        />
+      ) : (
+        <AttachmentPreview className="size-full rounded-[6px] bg-transparent" />
+      );
+
+    return (
+      <AttachmentHoverCard>
+        <AttachmentHoverCardTrigger asChild>
+          <Attachment
+            className="h-7 max-w-[148px] gap-1.5 rounded-full border-white/8 bg-white/[0.035] pl-1.5 pr-1 text-text-secondary hover:bg-white/[0.055] hover:text-text-primary"
+            data={attachment}
+            onRemove={handleRemove}
+          >
+            <div className="flex size-[18px] shrink-0 items-center justify-center overflow-hidden rounded-[6px] bg-white/[0.06]">
+              {inlinePreview}
+            </div>
+            <AttachmentInfo className="min-w-0 max-w-[92px] flex-none text-[11px] leading-none text-inherit" />
+            <AttachmentRemove className="!ml-0 !size-4 shrink-0 rounded-full !p-0 !opacity-100 text-white/35 transition hover:bg-white/[0.08] hover:text-white [&>svg]:size-[10px]" />
+          </Attachment>
+        </AttachmentHoverCardTrigger>
+        <AttachmentHoverCardContent
+          className="max-w-[240px] rounded-md border-white/10 bg-[#2f333d] px-2.5 py-1.5 text-[12px] font-medium text-white shadow-lg"
+          side="top"
+          sideOffset={6}
+        >
+          <div className="truncate">{label}</div>
+        </AttachmentHoverCardContent>
+      </AttachmentHoverCard>
+    );
+  },
+);
+
+ComposerAttachmentItem.displayName = 'ComposerAttachmentItem';
 
 function ComposerAttachmentsHeader() {
   const attachments = usePromptInputAttachments();
@@ -66,11 +132,11 @@ function ComposerAttachmentsHeader() {
     <PromptInputHeader className="px-4 pt-3">
       <Attachments variant="inline" className="max-w-full">
         {attachments.files.map((attachment) => (
-          <Attachment data={attachment} key={attachment.id} onRemove={() => attachments.remove(attachment.id)}>
-            <AttachmentPreview />
-            <AttachmentInfo />
-            <AttachmentRemove />
-          </Attachment>
+          <ComposerAttachmentItem
+            attachment={attachment}
+            key={attachment.id}
+            onRemove={attachments.remove}
+          />
         ))}
       </Attachments>
     </PromptInputHeader>
@@ -195,16 +261,19 @@ export function Composer({
   isStreaming,
   models,
   selectedModelId,
+  modelPickerOpen,
+  composerFocusNonce,
   detail,
   draft,
   onChange,
   onSend,
   onAbort,
   onSelectModel,
+  onModelPickerOpenChange,
+  onComposerFocusChange,
   onRefreshModels,
   isRefreshingModels,
 }: ComposerProps) {
-  const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const selectedModel = useMemo(
@@ -218,6 +287,10 @@ export function Composer({
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
   }, [value]);
+
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, [composerFocusNonce]);
 
   const handleSubmit = (message: PromptInputMessage) => {
     const hasText = Boolean(message.text.trim());
@@ -304,6 +377,8 @@ export function Composer({
               ref={textareaRef}
               value={value}
               onChange={(e) => onChange(e.target.value)}
+              onBlur={() => onComposerFocusChange(false)}
+              onFocus={() => onComposerFocusChange(true)}
               disabled={disabled}
               rows={1}
               placeholder="Message..."
@@ -323,10 +398,10 @@ export function Composer({
             models={models}
             onAbort={onAbort}
             onAttachmentErrorClear={() => setAttachmentError(null)}
-            onModelPickerOpenChange={setModelPickerOpen}
+            onModelPickerOpenChange={onModelPickerOpenChange}
             onRefreshModels={onRefreshModels}
             onSelectModel={(modelId) => {
-              setModelPickerOpen(false);
+              onModelPickerOpenChange(false);
               onSelectModel(modelId);
             }}
             selectedModel={selectedModel}

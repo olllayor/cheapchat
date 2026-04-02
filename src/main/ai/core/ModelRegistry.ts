@@ -117,6 +117,9 @@ export class ModelRegistry {
         uiFontFamily: this.settingsRepo.getUiFontFamily(),
         codeFontFamily: this.settingsRepo.getCodeFontFamily()
       },
+      keyboard: {
+        keybindings: this.settingsRepo.getKeybindings()
+      },
       showFreeOnlyByDefault: this.settingsRepo.getShowFreeOnlyByDefault(),
       modelCatalogLastSyncedAt: catalog.lastSyncedAt,
       modelCatalogStale: !catalog.lastSyncedAt || Date.now() - lastSyncedAt > staleThreshold,

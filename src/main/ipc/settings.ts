@@ -73,6 +73,10 @@ export function registerSettingsIpc({ settingsRepo, modelRegistry, keychain }: S
         settingsRepo.setCodeFontFamily(appearancePatch.codeFontFamily ?? null);
       }
 
+      if (patch?.keyboard?.keybindings) {
+        settingsRepo.setKeybindings(patch.keyboard.keybindings);
+      }
+
       return modelRegistry.getSettingsSummary();
     }
   );

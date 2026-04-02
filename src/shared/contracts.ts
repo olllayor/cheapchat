@@ -1,5 +1,15 @@
 export type ProviderId = 'openrouter' | 'glm' | 'openai' | 'gemini';
 
+export type {
+  KeybindingCommand,
+  KeybindingContext,
+  KeybindingRule,
+  KeybindingShortcut,
+  KeybindingWhenIdentifier,
+  KeybindingWhenNode,
+  ResolvedKeybindingRule,
+} from './keybindings';
+
 export type CredentialStatus = 'missing' | 'valid' | 'invalid' | 'unknown';
 
 export type MessageRole = 'system' | 'user' | 'assistant';
@@ -106,7 +116,7 @@ export const CODE_FONT_SIZE_MIN = 11;
 export const CODE_FONT_SIZE_MAX = 16;
 export const CODE_FONT_SIZE_DEFAULT = 13;
 
-export type SettingsSection = 'general' | 'appearance' | 'usage';
+export type SettingsSection = 'general' | 'appearance' | 'keyboard' | 'usage';
 
 export type SettingsAppearanceSummary = {
   themeMode: ThemeMode;
@@ -124,10 +134,15 @@ export const DEFAULT_SETTINGS_APPEARANCE: SettingsAppearanceSummary = {
   codeFontFamily: null
 };
 
+export type SettingsKeyboardSummary = {
+  keybindings: import('./keybindings').KeybindingRule[];
+};
+
 export type SettingsSummary = {
   providers: ProviderCredentialSummary[];
   defaultProviderId: ProviderId | null;
   appearance: SettingsAppearanceSummary;
+  keyboard: SettingsKeyboardSummary;
   showFreeOnlyByDefault: boolean;
   modelCatalogLastSyncedAt: string | null;
   modelCatalogStale: boolean;
@@ -396,6 +411,9 @@ export type SettingsUpdateRequest = {
     codeFontSize?: number;
     uiFontFamily?: FontFamilyOverride;
     codeFontFamily?: FontFamilyOverride;
+  };
+  keyboard?: {
+    keybindings?: import('./keybindings').KeybindingRule[];
   };
 };
 
