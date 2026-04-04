@@ -1,6 +1,7 @@
 "use client";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { BrushSpinner } from "@/components/ui/brush-spinner";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { BrainCircuit, ChevronDown } from "lucide-react";
@@ -141,7 +142,7 @@ export const ReasoningTrigger = ({
     <>
       <div className="flex min-w-0 items-center gap-2.5">
         <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-[12px] border border-white/6 bg-[linear-gradient(180deg,rgba(157,176,255,0.12),rgba(157,176,255,0.05))] text-[#aab8ff] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-          {isStreaming ? <Spinner className="size-3.5 text-[#aab8ff]" /> : <BrainCircuit className="size-3.5 text-[#aab8ff]" />}
+          {isStreaming ? <BrushSpinner size={14} strokeWidth={1.8} color="#aab8ff" glowColor="rgba(170,184,255,0.3)" speed={1.2} /> : <BrainCircuit className="size-3.5 text-[#aab8ff]" />}
         </span>
         <div className="min-w-0">
           <div className="truncate text-[13.5px] font-medium tracking-[-0.02em] text-white/90">

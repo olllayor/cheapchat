@@ -1,3 +1,5 @@
+import { BrushSpinner } from "@/components/ui/brush-spinner"
+
 type SidebarConversationRowProps = {
   isActive: boolean;
   isCollapsed: boolean;
@@ -46,12 +48,7 @@ export function SidebarConversationRow({
         </span>
 
         {isRunning ? (
-          <span
-            aria-hidden="true"
-            className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full border border-cyan-300/50 bg-cyan-300/90 shadow-[0_0_0_4px_rgba(34,211,238,0.12)]"
-          >
-            <span className="absolute inset-[-4px] rounded-full bg-cyan-300/18 animate-ping" />
-          </span>
+          <BrushSpinner size={10} strokeWidth={1.5} color="#22d3ee" glowColor="rgba(34,211,238,0.3)" speed={1.5} className="absolute right-0 top-0" />
         ) : null}
       </div>
     );
@@ -60,12 +57,7 @@ export function SidebarConversationRow({
   return (
     <>
       {isRunning ? (
-        <span
-          aria-hidden="true"
-          className="relative mt-0.5 h-2 w-2 shrink-0 rounded-full border border-cyan-300/45 bg-cyan-300/28 shadow-[0_0_0_4px_rgba(34,211,238,0.10)]"
-        >
-          <span className="absolute inset-[-4px] rounded-full bg-cyan-300/16 animate-ping" />
-        </span>
+        <BrushSpinner size={12} strokeWidth={1.5} color="#22d3ee" glowColor="rgba(34,211,238,0.3)" speed={1.5} />
       ) : null}
 
       <div className="min-w-0 flex-1">
