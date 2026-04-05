@@ -18,6 +18,7 @@ import { registerConversationsIpc } from './ipc/conversations';
 import { registerModelsIpc } from './ipc/models';
 import { registerSettingsIpc } from './ipc/settings';
 import { registerUpdatesIpc } from './ipc/updates';
+import { registerVisualsIpc } from './ipc/visuals';
 import { KeychainStore } from './secrets/keychain';
 import { UpdateService } from './updates/UpdateService';
 
@@ -106,6 +107,7 @@ app.whenReady().then(async () => {
   registerChatIpc(chatEngine);
   registerDiagnosticsIpc(database.conversations);
   registerUpdatesIpc(updateService);
+  registerVisualsIpc(database.visuals);
 
   const window = createWindow();
   window.once('show', () => {

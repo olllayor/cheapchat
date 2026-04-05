@@ -38,12 +38,13 @@ function buildAugmentationHead({ visualId, theme }: { visualId: string; theme: V
 html,body{
   margin:0;
   min-height:100%;
-  background:var(--atlas-bg);
+  background:transparent !important;
   color:var(--atlas-text);
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
 }
 body{
-  padding:16px;
+  padding:0;
+  margin:0;
   overflow-x:hidden;
   overflow-y:visible;
 }
@@ -53,6 +54,7 @@ a{color:var(--atlas-accent)}
 <script>
 (() => {
   const visualId = ${JSON.stringify(visualId)};
+  window.__visualId = visualId;
   const post = (type, payload = {}) => {
     try {
       window.parent.postMessage({ source: 'atlas-visual', type, visualId, ...payload }, '*');
@@ -80,19 +82,42 @@ a{color:var(--atlas-accent)}
     post('visual-resize', { height });
   };
   window.addEventListener('error', (event) => {
-    post('visual-error', { message: event.message || 'The visual failed to render.' });
+    const detail = [
+      event.message || 'Unknown error',
+      event.filename ? ' at ' + event.filename + ':' + (event.lineno || '?') : '',
+      event.error && event.error.stack ? '\\n' + event.error.stack : '',
+    ].join('');
+    post('visual-error', { message: detail });
   });
   window.addEventListener('unhandledrejection', (event) => {
     post('visual-error', { message: toMessage(event.reason, 'The visual failed to render.') });
   });
   window.addEventListener('load', () => {
-    if ('ResizeObserver' in window) {
-      const observer = new ResizeObserver(() => reportSize());
-      observer.observe(document.documentElement);
+    // Only observe the actual content element, NOT body or documentElement
+    // Observing body creates a loop: parent resizes iframe → body size changes → ResizeObserver fires → parent resizes again
+    const contentEl = document.getElementById('root')
+      || document.querySelector('canvas')
+      || document.querySelector('svg')
+      || document.body.firstElementChild;
+
+    if ('ResizeObserver' in window && contentEl) {
+      const observer = new ResizeObserver(() => {
+        const h = contentEl.getBoundingClientRect().height;
+        post('visual-resize', { height: h + 32 });
+      });
+      observer.observe(contentEl);
+    }
+    if ('MutationObserver' in window) {
+      const mutObs = new MutationObserver(() => {
+        const h = contentEl ? contentEl.getBoundingClientRect().height : 0;
+        post('visual-resize', { height: h + 32 });
+      });
+      mutObs.observe(document.body, { childList: true, subtree: true, attributes: true });
     }
     reportSize();
     requestAnimationFrame(reportSize);
     setTimeout(reportSize, 60);
+    setTimeout(reportSize, 200);
     post('visual-ready');
   });
 })();
@@ -103,32 +128,43 @@ function looksLikeFullHtmlDocument(content: string) {
   return /<\s*(?:!doctype|html|head|body)\b/i.test(content);
 }
 
+function buildLibraryScripts(libraries: string[]): string {
+  if (libraries.length === 0) return '';
+  return libraries
+    .map((script) => `<script>\n${script}\n</script>`)
+    .join('\n');
+}
+
 export function buildVisualSrcDoc({
   visualId,
   content,
   theme,
+  libraries = [],
 }: {
   visualId: string;
   content: string;
   theme: VisualThemeTokens;
+  libraries?: string[];
 }) {
   const augmentationHead = buildAugmentationHead({ visualId, theme });
+  const libraryScripts = buildLibraryScripts(libraries);
 
   if (looksLikeFullHtmlDocument(content)) {
     if (/<head[\s>]/i.test(content)) {
-      return content.replace(/<head([^>]*)>/i, `<head$1>\n${augmentationHead}\n`);
+      return content.replace(/<head([^>]*)>/i, `<head$1>\n${libraryScripts}\n${augmentationHead}\n`);
     }
 
     if (/<html[\s>]/i.test(content)) {
-      return content.replace(/<html([^>]*)>/i, `<html$1>\n<head>\n${augmentationHead}\n</head>\n`);
+      return content.replace(/<html([^>]*)>/i, `<html$1>\n<head>\n${libraryScripts}\n${augmentationHead}\n</head>\n`);
     }
 
-    return `${augmentationHead}\n${content}`;
+    return `${libraryScripts}\n${augmentationHead}\n${content}`;
   }
 
   return `<!DOCTYPE html>
 <html>
 <head>
+${libraryScripts}
 ${augmentationHead}
 </head>
 <body>

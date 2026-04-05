@@ -272,6 +272,25 @@ export type OpenVisualWindowRequest = {
   theme: VisualThemeTokens;
 };
 
+export type SavedVisual = {
+  id: string;
+  title: string;
+  content: string;
+  visualType: string;
+  sourceConversationId: string | null;
+  sourceMessageId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SaveVisualRequest = {
+  title: string;
+  content: string;
+  visualType: string;
+  sourceConversationId?: string | null;
+  sourceMessageId?: string | null;
+};
+
 export type StreamChunkEvent = {
   type: 'chunk';
   requestId: string;
@@ -534,6 +553,13 @@ export type RendererApi = {
     abort: (requestId: string) => Promise<void>;
     openVisualWindow: (request: OpenVisualWindowRequest) => Promise<void>;
     subscribe: (listener: (event: StreamEvent) => void) => () => void;
+  };
+  visuals: {
+    save: (request: SaveVisualRequest) => Promise<SavedVisual>;
+    list: (limit?: number) => Promise<SavedVisual[]>;
+    get: (id: string) => Promise<SavedVisual | null>;
+    search: (query: string, limit?: number) => Promise<SavedVisual[]>;
+    delete: (id: string) => Promise<boolean>;
   };
   diagnostics: {
     getSnapshot: () => Promise<DiagnosticsSnapshot>;

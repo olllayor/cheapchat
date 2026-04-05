@@ -41,6 +41,13 @@ const api: RendererApi = {
       };
     }
   },
+  visuals: {
+    save: (request) => ipcRenderer.invoke(IPC_CHANNELS.visualsSave, request),
+    list: (limit) => ipcRenderer.invoke(IPC_CHANNELS.visualsList, limit),
+    get: (id) => ipcRenderer.invoke(IPC_CHANNELS.visualsGet, id),
+    search: (query, limit) => ipcRenderer.invoke(IPC_CHANNELS.visualsSearch, query, limit),
+    delete: (id) => ipcRenderer.invoke(IPC_CHANNELS.visualsDelete, id)
+  },
   diagnostics: {
     getSnapshot: () => ipcRenderer.invoke(IPC_CHANNELS.diagnosticsGetSnapshot)
   },

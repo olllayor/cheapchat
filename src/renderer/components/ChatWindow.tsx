@@ -62,26 +62,18 @@ const suggestions = [
   { icon: Search, text: 'Research something', prompt: 'Tell me about ' },
 ];
 
-function MessageMeta({ latencyMs, modelLabel }: { latencyMs?: number | null; modelLabel?: string | null }) {
-  if (!latencyMs && !modelLabel) {
+function MessageMeta({ latencyMs }: { latencyMs?: number | null }) {
+  if (!latencyMs) {
     return null;
   }
 
+  const seconds = (latencyMs / 1000).toFixed(1);
+
   return (
     <div className="mt-3 flex min-h-4 flex-wrap items-center gap-2">
-      {latencyMs ? (
-        <span className="app-code-chip inline-flex items-center rounded-full border border-border-subtle bg-bg-hover px-2.5 py-1 tabular-nums text-text-faint/85">
-          {latencyMs}ms
-        </span>
-      ) : null}
-      {modelLabel ? (
-        <span
-          className="inline-flex max-w-[min(100%,360px)] items-center rounded-full border border-border-subtle bg-bg-hover px-2.5 py-1 text-[10.5px] leading-none text-text-faint/80"
-          title={modelLabel}
-        >
-          {modelLabel}
-        </span>
-      ) : null}
+      <span className="app-code-chip inline-flex items-center rounded-full border border-border-subtle bg-bg-hover px-2.5 py-1 tabular-nums text-text-faint/85">
+        {seconds}s
+      </span>
     </div>
   );
 }
@@ -348,7 +340,6 @@ function MessageRow({
 
         <MessageMeta
           latencyMs={message.status === 'complete' ? message.latencyMs : null}
-          modelLabel={message.modelId}
         />
 
         <div className="mt-1.5 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -414,7 +405,7 @@ function StreamingRow({
           <AssistantParts content="" isStreaming latencyMs={null} parts={parts} />
         )}
 
-        {modelLabel ? <MessageMeta modelLabel={modelLabel} /> : null}
+        {modelLabel ? <MessageMeta latencyMs={null} /> : null}
       </div>
     </div>
   );

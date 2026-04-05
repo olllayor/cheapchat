@@ -13,6 +13,7 @@ import { AppUpdateButton } from './components/AppUpdateButton';
 import { RendererErrorBoundary } from './components/RendererErrorBoundary';
 import { buildUsageSummary, SettingsWorkspace } from './components/SettingsWorkspace';
 import { Sidebar } from './components/Sidebar';
+import { VisualGallery } from './components/ai-elements/visual-gallery';
 import { AtlasToaster } from './components/ui/sonner';
 import { TooltipProvider } from './components/ui/tooltip';
 import { APP_COMMAND_DEFINITIONS, APP_COMMANDS_BY_ID } from './lib/keybindingCommands';
@@ -115,6 +116,7 @@ function buildFontFamilyValue(override: FontFamilyOverride, fallbackVariable: '-
 export default function App() {
   const [composerValue, setComposerValue] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [showConversationJumpHints, setShowConversationJumpHints] = useState(false);
   const [showNewChatShortcutHint, setShowNewChatShortcutHint] = useState(false);
   const [showSidebarToggleShortcutHint, setShowSidebarToggleShortcutHint] = useState(false);
@@ -716,6 +718,7 @@ export default function App() {
               onComposerFocusChange={setComposerFocused}
               onRefreshModels={() => void refreshModels()}
               isRefreshingModels={isRefreshingModels}
+              onOpenGallery={() => setGalleryOpen(true)}
             />
           </RendererErrorBoundary>
         </div>
@@ -730,6 +733,14 @@ export default function App() {
         onOpenChange={setCommandPaletteOpen}
         onSelect={runCommand}
         open={commandPaletteOpen}
+      />
+      <VisualGallery
+        isOpen={galleryOpen}
+        onClose={() => setGalleryOpen(false)}
+        onSelect={(visual) => {
+          setGalleryOpen(false);
+          setComposerValue(visual.content);
+        }}
       />
       {content}
     </TooltipProvider>

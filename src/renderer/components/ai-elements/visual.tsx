@@ -1,8 +1,12 @@
-import { AlertCircle, Check, Copy, Expand } from 'lucide-react';
-import { Component, type ErrorInfo, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, Bookmark, Check, Copy, Expand } from 'lucide-react';
+import { Component, type ErrorInfo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ChatPartState, VisualThemeTokens } from '../../../shared/contracts';
+import { detectRequiredLibraries } from '../../../shared/visualParser';
 import { buildVisualSrcDoc } from '../../../shared/visualDocument';
+import { chartJs, d3Js } from '../../visual/bundles';
+import { detectDiagramSpec, InteractiveDiagram } from './interactive-diagram';
+import { detectRiveContent, RiveVisual } from './rive-visual';
 import { useClipboard } from '../../hooks/useClipboard';
 import { cn } from '../../lib/utils';
 
@@ -84,6 +88,9 @@ export function VisualBlock({ visualId, content, state, title, className }: Visu
   const [height, setHeight] = useState(220);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const { copied, copy } = useClipboard();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const heightRef = useRef(120);
+  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const trimmedContent = content.trim();
   const isStreaming = state === 'streaming';
@@ -106,7 +113,26 @@ export function VisualBlock({ visualId, content, state, title, className }: Visu
   useEffect(() => {
     setErrorMessage(null);
     setHeight(220);
+    heightRef.current = 120;
   }, [trimmedContent, visualId]);
+
+  const isDiagram = useMemo(() => {
+    if (isStreaming || isEmptyComplete) return false;
+    return detectDiagramSpec(trimmedContent);
+  }, [isStreaming, isEmptyComplete, trimmedContent]);
+
+  const isRive = useMemo(() => {
+    if (isStreaming || isEmptyComplete) return false;
+    return detectRiveContent(trimmedContent);
+  }, [isStreaming, isEmptyComplete, trimmedContent]);
+
+  const requiredLibraries = useMemo(() => {
+    const detected = detectRequiredLibraries(trimmedContent);
+    const libs: string[] = [];
+    if (detected.includes('chartjs')) libs.push(chartJs);
+    if (detected.includes('d3')) libs.push(d3Js);
+    return libs;
+  }, [trimmedContent]);
 
   const srcdoc = useMemo(() => {
     if (trimmedContent.length === 0) {
@@ -117,8 +143,9 @@ export function VisualBlock({ visualId, content, state, title, className }: Visu
       visualId,
       content: trimmedContent,
       theme,
+      libraries: requiredLibraries,
     });
-  }, [trimmedContent, theme, visualId]);
+  }, [trimmedContent, theme, visualId, requiredLibraries]);
 
   const handleMessage = useCallback((event: MessageEvent<VisualIframeMessage>) => {
     if (event.data?.source !== 'atlas-visual' || event.data.visualId !== visualId) {
@@ -126,17 +153,29 @@ export function VisualBlock({ visualId, content, state, title, className }: Visu
     }
 
     if (event.data.type === 'visual-resize' && typeof event.data.height === 'number') {
-      const next = event.data.height + 4;
-      if (Number.isFinite(next)) {
-        setHeight(Math.max(next, 140));
-      }
+      const newHeight = Math.max(event.data.height, 120);
+      if (!Number.isFinite(newHeight)) return;
+      if (Math.abs(newHeight - heightRef.current) <= 2) return;
+      if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
+      resizeTimerRef.current = setTimeout(() => {
+        heightRef.current = newHeight;
+        setHeight(newHeight);
+        resizeTimerRef.current = null;
+      }, 50);
       return;
     }
 
     if (event.data.type === 'visual-error') {
+      console.error('[VisualBlock] iframe error:', event.data);
       setErrorMessage(event.data.message?.trim() || 'The visual failed to render.');
     }
   }, [visualId]);
+
+  useEffect(() => {
+    return () => {
+      if (resizeTimerRef.current) clearTimeout(resizeTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     window.addEventListener('message', handleMessage);
@@ -144,10 +183,7 @@ export function VisualBlock({ visualId, content, state, title, className }: Visu
   }, [handleMessage]);
 
   const openInWindow = useCallback(async () => {
-    if (!trimmedContent) {
-      return;
-    }
-
+    if (!trimmedContent) return;
     await window.atlasChat.chat.openVisualWindow({
       visualId,
       title,
@@ -157,58 +193,78 @@ export function VisualBlock({ visualId, content, state, title, className }: Visu
   }, [theme, title, trimmedContent, visualId]);
 
   const copySource = useCallback(async () => {
-    if (!trimmedContent) {
-      return;
-    }
-
+    if (!trimmedContent) return;
     await copy(trimmedContent);
   }, [copy, trimmedContent]);
 
+  const [isSaved, setIsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const saveVisual = useCallback(async () => {
+    if (!trimmedContent || isSaving) return;
+    setIsSaving(true);
+    try {
+      const visualType = isDiagram ? 'diagram' : isRive ? 'rive' : 'iframe';
+      await window.atlasChat.visuals.save({
+        title: title?.trim() || 'Untitled visual',
+        content: trimmedContent,
+        visualType,
+      });
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 2000);
+    } catch (e) {
+      console.error('Failed to save visual:', e);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [trimmedContent, isSaving, isDiagram, isRive, title]);
+
   return (
     <VisualUiErrorBoundary key={visualId}>
-      <div className={cn('group my-3 overflow-hidden rounded-xl border border-border/50 bg-bg-subtle/35', className)}>
-        <div className="flex items-center justify-between gap-3 border-b border-border/50 bg-bg-subtle px-4 py-2.5">
-          <div className="min-w-0">
-            <div className="truncate text-xs font-semibold tracking-[0.02em] text-text-secondary">
-              {title?.trim() || 'Inline visual'}
-            </div>
-            <div className="text-[11px] text-text-muted">
-              {isStreaming ? 'Streaming visual…' : errorMessage ? 'Render failed' : 'Sandboxed visual'}
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+      <div ref={containerRef} className={cn('group relative -mx-6 my-4 w-[calc(100%+3rem)] sm:-mx-7 sm:w-[calc(100%+3.5rem)] lg:-mx-7 lg:w-[calc(100%+3.5rem)] xl:-mx-8 xl:w-[calc(100%+4rem)]', className)}>
+        {!isStreaming && !errorMessage && !isEmptyComplete && (
+          <div className="absolute right-3 top-3 z-10 flex items-center gap-0.5 rounded-lg border border-border/30 bg-bg-surface/90 px-1.5 py-1 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+            <button
+              type="button"
+              onClick={() => void saveVisual()}
+              disabled={isStreaming}
+              className={cn(
+                'inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-text-muted transition hover:text-text-primary',
+                isSaved && 'text-accent'
+              )}
+              title="Save to gallery"
+            >
+              <Bookmark className={cn('h-3.5 w-3.5', isSaved && 'fill-accent')} />
+              {isSaved ? 'Saved' : 'Save'}
+            </button>
             <button
               type="button"
               onClick={() => void copySource()}
-              disabled={!trimmedContent}
-              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border/60 bg-bg-elevated px-3 text-[11px] font-medium text-text-secondary transition hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
-              title="Copy HTML/SVG source"
+              className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-text-muted transition hover:text-text-primary"
+              title="Copy source"
             >
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              <span>{copied ? 'Copied' : 'Copy source'}</span>
             </button>
             <button
               type="button"
               onClick={() => void openInWindow()}
-              disabled={!trimmedContent}
-              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border/60 bg-bg-elevated px-3 text-[11px] font-medium text-text-secondary transition hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
-              title="Open visual in a separate window"
+              className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-text-muted transition hover:text-text-primary"
+              title="Expand"
             >
               <Expand className="h-3.5 w-3.5" />
-              <span>Expand</span>
             </button>
           </div>
-        </div>
+        )}
 
         {isStreaming ? (
-          <div className="flex h-52 items-center justify-center bg-bg-subtle/55">
+          <div className="flex h-52 w-full items-center justify-center">
             <div className="flex flex-col items-center gap-2">
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-text-muted" />
               <span className="text-sm text-text-muted">Building visual...</span>
             </div>
           </div>
         ) : errorMessage || isEmptyComplete ? (
-          <div className="flex min-h-44 items-center justify-center bg-bg-subtle/45 px-5 py-6">
+          <div className="flex min-h-44 w-full items-center justify-center px-5 py-6">
             <div
               className="w-full max-w-lg rounded-2xl border px-4 py-4"
               style={{
@@ -228,11 +284,31 @@ export function VisualBlock({ visualId, content, state, title, className }: Visu
               </div>
             </div>
           </div>
+        ) : isDiagram ? (
+          <InteractiveDiagram
+            content={trimmedContent}
+            title={title}
+            className="border-0 bg-transparent"
+          />
+        ) : isRive ? (
+          <RiveVisual
+            content={trimmedContent}
+            title={title}
+            className="border-0 bg-transparent"
+          />
         ) : (
           <iframe
             srcDoc={srcdoc}
             sandbox="allow-scripts"
-            style={{ width: '100%', height, border: 'none', display: 'block' }}
+            style={{
+              width: '100%',
+              height: Math.max(height, 120),
+              maxHeight: '80vh',
+              border: 'none',
+              display: 'block',
+              background: 'transparent',
+              overflow: 'hidden',
+            }}
             title={title?.trim() || 'visualization'}
           />
         )}

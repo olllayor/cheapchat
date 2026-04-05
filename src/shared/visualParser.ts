@@ -5,6 +5,13 @@ const POTENTIAL_START_TOKENS = [VISUAL_START, '<svg', '<html', '<style', '<div s
 /** Holds possible split of `</visual>` and long opening tags (e.g. `<div ... style=`). */
 export const SAFETY_BUFFER = 32;
 
+export function detectRequiredLibraries(html: string): string[] {
+  const libs: string[] = [];
+  if (/new Chart\s*\(/.test(html)) libs.push('chartjs');
+  if (/\bd3\.(select|force|scale|axis|line|area|pie|arc|geo|brush|zoom|drag|transition)\b/.test(html)) libs.push('d3');
+  return libs;
+}
+
 const RAW_END = {
   svg: '</svg>',
   html: '</html>',
@@ -201,7 +208,11 @@ export class VisualStreamParser {
   feed(chunk: string, requestId: string): ParsedChunk[] {
     const results: ParsedChunk[] = [];
     this.lastRequestId = requestId;
-    this.buffer += chunk;
+    // Strip code block markers that wrap <visual> tags (models sometimes wrap visuals in ```html ... ```)
+    const cleanedChunk = chunk
+      .replace(/```(?:html|xml|js|javascript)?\s*\n/g, '')
+      .replace(/\n\s*```/g, '');
+    this.buffer += cleanedChunk;
 
     while (true) {
       if (this.inRaw && this.rawKind) {
@@ -330,6 +341,10 @@ export class VisualStreamParser {
 
   flush(requestId: string): ParsedChunk[] {
     this.lastRequestId = requestId;
+    // Strip code block markers from remaining buffer
+    this.buffer = this.buffer
+      .replace(/```(?:html|xml|js|javascript)?\s*\n/g, '')
+      .replace(/\n\s*```/g, '');
     const results: ParsedChunk[] = [];
 
     if (this.inRaw && this.rawKind) {
