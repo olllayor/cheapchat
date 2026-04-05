@@ -1,7 +1,8 @@
-import { AlertCircle, Check, Copy, Maximize2 } from 'lucide-react';
+import { AlertCircle, Check, Copy } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Background,
+  BackgroundVariant,
   Controls,
   type Edge,
   type Node,
@@ -37,8 +38,23 @@ type DiagramSpec = {
   edges: DiagramEdge[];
 };
 
-const NODE_WIDTH = 180;
-const NODE_HEIGHT = 48;
+const NODE_WIDTH = 200;
+const NODE_HEIGHT = 56;
+
+const NODE_COLORS: Record<string, { bg: string; border: string }> = {
+  input: { bg: '#1e3a5f', border: '#3b82f6' },
+  output: { bg: '#1a4731', border: '#22c55e' },
+  default: { bg: '#1e293b', border: '#334155' },
+};
+
+const SEMANTIC_COLORS = [
+  { bg: '#1e3a5f', border: '#3b82f6' },
+  { bg: '#1a4731', border: '#22c55e' },
+  { bg: '#1e293b', border: '#334155' },
+  { bg: '#3b1f5e', border: '#8b5cf6' },
+  { bg: '#422006', border: '#f59e0b' },
+  { bg: '#4a1c1c', border: '#ef4444' },
+];
 
 function getLayoutedElements(
   nodes: Node[],
@@ -49,10 +65,10 @@ function getLayoutedElements(
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({
     rankdir: direction,
-    nodesep: 60,
-    ranksep: 80,
-    marginx: 30,
-    marginy: 30,
+    nodesep: 80,
+    ranksep: 100,
+    marginx: 40,
+    marginy: 40,
   });
 
   nodes.forEach((node) => {
@@ -80,33 +96,28 @@ function getLayoutedElements(
 }
 
 function toReactFlowNodes(specNodes: DiagramNode[]): Node[] {
-  const colorPalette = [
-    { bg: '#1e3a5f', border: '#3b82f6', text: '#e2e8f0' },
-    { bg: '#1a4731', border: '#22c55e', text: '#e2e8f0' },
-    { bg: '#3b1f5e', border: '#a855f7', text: '#e2e8f0' },
-    { bg: '#4a2c2a', border: '#f97316', text: '#e2e8f0' },
-    { bg: '#1c3d4a', border: '#06b6d4', text: '#e2e8f0' },
-    { bg: '#3d2c4a', border: '#ec4899', text: '#e2e8f0' },
-  ];
-
   return specNodes.map((node, i) => {
-    const colors = colorPalette[i % colorPalette.length];
+    const typeColors = NODE_COLORS[node.type || 'default'];
+    const semanticColors = SEMANTIC_COLORS[i % SEMANTIC_COLORS.length];
+    const colors = node.type && NODE_COLORS[node.type] ? typeColors : semanticColors;
+
     return {
       id: node.id,
-      type: node.type || 'default',
+      type: 'default',
       data: { label: node.label },
       position: { x: 0, y: 0 },
       style: {
         background: node.style?.background || colors.bg,
-        border: `1px solid ${node.style?.border || colors.border}`,
-        color: node.style?.color || colors.text,
-        borderRadius: '8px',
+        border: `1.5px solid ${node.style?.border || colors.border}`,
+        color: '#f1f5f9',
+        borderRadius: '10px',
         fontSize: '13px',
         fontWeight: '500',
         fontFamily: 'system-ui, -apple-system, sans-serif',
-        padding: '10px 16px',
+        padding: '12px 16px',
         width: NODE_WIDTH,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+        lineHeight: '1.4',
+        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.4), 0 2px 4px -2px rgba(0,0,0,0.3)',
         ...node.style,
       },
     };
@@ -122,13 +133,22 @@ function toReactFlowEdges(specEdges: DiagramEdge[]): Edge[] {
     animated: edge.animated || false,
     markerEnd: {
       type: MarkerType.ArrowClosed,
-      width: 16,
-      height: 16,
-      color: '#64748b',
+      width: 14,
+      height: 14,
+      color: '#475569',
     },
     style: {
-      stroke: '#64748b',
+      stroke: '#475569',
       strokeWidth: 1.5,
+    },
+    labelStyle: {
+      fill: '#94a3b8',
+      fontSize: '11px',
+      fontWeight: '500',
+    },
+    labelBgStyle: {
+      fill: '#0f172a',
+      fillOpacity: 0.85,
     },
   }));
 }
@@ -136,9 +156,7 @@ function toReactFlowEdges(specEdges: DiagramEdge[]): Edge[] {
 function parseDiagramSpec(content: string): DiagramSpec | null {
   const trimmed = content.trim();
 
-  const jsonMatch = trimmed.match(
-    /^\s*\{\s*"nodes"\s*:/
-  );
+  const jsonMatch = trimmed.match(/^\s*\{\s*"nodes"\s*:/);
   if (jsonMatch) {
     try {
       const parsed = JSON.parse(trimmed);
@@ -153,9 +171,7 @@ function parseDiagramSpec(content: string): DiagramSpec | null {
     }
   }
 
-  const codeBlockMatch = trimmed.match(
-    /```(?:json)?\s*\n([\s\S]*?)\n```/
-  );
+  const codeBlockMatch = trimmed.match(/```(?:json)?\s*\n([\s\S]*?)\n```/);
   if (codeBlockMatch) {
     try {
       const parsed = JSON.parse(codeBlockMatch[1]);
@@ -243,8 +259,8 @@ export function InteractiveDiagram({
   }
 
   return (
-    <div className={cn('group my-3 overflow-hidden rounded-xl border border-border/50 bg-bg-subtle/35', className)}>
-      <div className="flex items-center justify-between gap-3 border-b border-border/50 bg-bg-subtle px-4 py-2.5">
+    <div className={cn('group my-3 overflow-hidden rounded-xl border border-border/50 bg-[#0f172a]', className)}>
+      <div className="flex items-center justify-between gap-3 border-b border-border/50 bg-bg-subtle/60 px-4 py-2.5">
         <div className="min-w-0">
           <div className="truncate text-xs font-semibold tracking-[0.02em] text-text-secondary">
             {title?.trim() || 'Interactive diagram'}
@@ -266,14 +282,14 @@ export function InteractiveDiagram({
         </div>
       </div>
 
-      <div className="h-80 w-full">
+      <div className="h-80 w-full" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           fitView
-          fitViewOptions={{ padding: 0.2 }}
+          fitViewOptions={{ padding: 0.25 }}
           minZoom={0.2}
           maxZoom={2}
           nodesDraggable
@@ -282,19 +298,23 @@ export function InteractiveDiagram({
           panOnDrag
           zoomOnScroll
           zoomOnPinch
+          defaultEdgeOptions={{
+            style: { stroke: '#475569', strokeWidth: 1.5 },
+          }}
         >
           <Background
-            color="rgba(148, 163, 184, 0.08)"
+            variant={BackgroundVariant.Dots}
             gap={20}
             size={1}
+            color="#1e293b"
           />
           <Controls
             showInteractive={false}
             showFitView
             showZoom
-            className="!bg-bg-elevated !border-border/50 !shadow-lg"
+            className="!bg-[#1e293b] !border-[#334155] !shadow-lg !rounded-lg"
           />
-          <Panel position="bottom-right" className="!text-[10px] !text-text-muted">
+          <Panel position="bottom-right" className="!text-[10px] !text-slate-500">
             {spec.nodes.length} nodes · {spec.edges.length} edges
           </Panel>
         </ReactFlow>

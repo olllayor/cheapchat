@@ -155,8 +155,18 @@ For **flowcharts, architecture diagrams, state machines, dependency graphs, or a
 **Node fields:**
 - \`id\` (required) — unique string identifier
 - \`label\` (required) — display text
-- \`type\` (optional) — node style hint (e.g. "input", "output", "default")
+- \`type\` (optional) — semantic type: \`"input"\` (blue), \`"output"\` (green), or omit for auto-assigned palette
 - \`style\` (optional) — CSS style overrides: \`{ background, border, color }\`
+
+**Node color rules (use ONLY these when specifying custom styles):**
+- Primary/main nodes: \`#3b82f6\` (blue border, \`#1e3a5f\` bg)
+- Success/positive: \`#22c55e\` (green border, \`#1a4731\` bg)
+- Warning/alternative: \`#f59e0b\` (amber border, \`#422006\` bg)
+- Danger/problem: \`#ef4444\` (red border, \`#4a1c1c\` bg)
+- Neutral/info: \`#8b5cf6\` (purple border, \`#3b1f5e\` bg)
+- Default: \`#334155\` (slate border, \`#1e293b\` bg)
+- Always use white/light text (\`#f1f5f9\`) on all nodes
+- Never use: random colors, bright white backgrounds
 
 **Edge fields:**
 - \`id\` (optional) — unique string; auto-generated if omitted
