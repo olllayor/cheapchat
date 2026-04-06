@@ -62,8 +62,8 @@ const suggestions = [
   { icon: Search, text: 'Research something', prompt: 'Tell me about ' },
 ];
 
-function MessageMeta({ latencyMs }: { latencyMs?: number | null }) {
-  if (!latencyMs) {
+function MessageMeta({ latencyMs, modelLabel }: { latencyMs?: number | null; modelLabel?: string | null }) {
+  if (!latencyMs && !modelLabel) {
     return null;
   }
 
