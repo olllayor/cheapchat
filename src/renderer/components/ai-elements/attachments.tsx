@@ -167,9 +167,9 @@ export const Attachment = ({
           variant === "grid" && "size-24 overflow-hidden",
           variant === "inline" && [
             "flex h-8 max-w-full cursor-pointer select-none items-center gap-1.5",
-            "rounded-none border border-white/10 bg-white/[0.04] px-1.5",
+            "rounded-[var(--radius-sm)] border border-[var(--border-default)] bg-[var(--bg-ghost)] px-1.5",
             "font-medium text-[12px] text-text-secondary transition-all",
-            "hover:bg-white/[0.07] hover:text-text-primary",
+            "hover:bg-[var(--bg-hover)] hover:text-text-primary",
           ],
           variant === "list" && [
             "flex w-full items-center gap-3 border p-3",
@@ -314,7 +314,7 @@ export const AttachmentRemove = ({
         variant === "grid" && [
           "absolute right-2 top-2 size-6 p-0",
           "bg-bg-base opacity-0 transition-opacity group-hover:opacity-100",
-          "hover:bg-white/[0.05]",
+          "hover:bg-[var(--bg-hover)]",
           "[&>svg]:size-3",
         ],
         variant === "inline" && [

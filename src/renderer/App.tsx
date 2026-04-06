@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 
 import { DEFAULT_SETTINGS_APPEARANCE } from '../shared/contracts';
-import type { AppUpdateSnapshot, FontFamilyOverride, KeybindingCommand, StreamEvent, ThemeMode } from '../shared/contracts';
+import type { AppUpdateSnapshot, DesignTheme, FontFamilyOverride, KeybindingCommand, StreamEvent, ThemeMode } from '../shared/contracts';
 import { getDefaultKeybindingRules, resolveKeybindingRules } from '../shared/keybindings';
 import { PROVIDER_METADATA } from '../shared/providerMetadata';
 import { POSTHOG_EVENTS } from '../shared/posthog';
@@ -31,6 +31,7 @@ import { captureEvent, identifyUser } from './lib/posthog';
 import { prewarmMessageRendering } from './lib/messageRendering';
 import { runViewTransition } from './lib/viewTransitions';
 import { selectDiagnosticsSummary, selectLoadedConversationMetrics, useAppStore } from './stores/useAppStore';
+import { notify } from './lib/notify';
 
 function LoadingScreen() {
   return (
@@ -479,6 +480,10 @@ export default function App() {
   }, [themeMode]);
 
   useEffect(() => {
+    document.documentElement.dataset.designTheme = appearance.designTheme;
+  }, [appearance.designTheme]);
+
+  useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty('--ui-font-size', `${appearance.uiFontSize}px`);
     root.style.setProperty('--code-font-size', `${appearance.codeFontSize}px`);
@@ -608,22 +613,36 @@ export default function App() {
         onThemeModeChange={(mode) => {
           captureEvent(POSTHOG_EVENTS.PREFERENCES_UPDATED, { setting: 'themeMode', value: mode });
           void updatePreferences({ appearance: { themeMode: mode } });
+          const modeLabel = mode === 'system' ? 'System' : mode === 'dark' ? 'Dark' : 'Light';
+          notify({ tone: 'info', title: `Theme mode: ${modeLabel}` });
+        }}
+        onDesignThemeChange={(theme) => {
+          captureEvent(POSTHOG_EVENTS.PREFERENCES_UPDATED, { setting: 'designTheme', value: theme });
+          void updatePreferences({ appearance: { designTheme: theme } });
+          const themeLabel = theme === 'default' ? 'Default' : theme === 'xai' ? 'xAI' : 'Cursor';
+          notify({ tone: 'info', title: `Design theme: ${themeLabel}` });
         }}
         onUiFontSizeChange={(value) => {
           captureEvent(POSTHOG_EVENTS.PREFERENCES_UPDATED, { setting: 'uiFontSize', value });
           void updatePreferences({ appearance: { uiFontSize: value } });
+          notify({ tone: 'info', title: `UI font size: ${value}px` });
         }}
         onCodeFontSizeChange={(value) => {
           captureEvent(POSTHOG_EVENTS.PREFERENCES_UPDATED, { setting: 'codeFontSize', value });
           void updatePreferences({ appearance: { codeFontSize: value } });
+          notify({ tone: 'info', title: `Code font size: ${value}px` });
         }}
         onUiFontFamilyChange={(value) => {
           captureEvent(POSTHOG_EVENTS.PREFERENCES_UPDATED, { setting: 'uiFontFamily', value });
           void updatePreferences({ appearance: { uiFontFamily: value } });
+          const fontLabel = value === 'system' ? 'System' : value === 'mono' ? 'Monospace' : 'System';
+          notify({ tone: 'info', title: `UI font: ${fontLabel}` });
         }}
         onCodeFontFamilyChange={(value) => {
           captureEvent(POSTHOG_EVENTS.PREFERENCES_UPDATED, { setting: 'codeFontFamily', value });
           void updatePreferences({ appearance: { codeFontFamily: value } });
+          const fontLabel = value === 'system' ? 'System' : value === 'mono' ? 'Monospace' : 'System';
+          notify({ tone: 'info', title: `Code font: ${fontLabel}` });
         }}
         onUpdateKeybindings={(rules) => {
           captureEvent(POSTHOG_EVENTS.PREFERENCES_UPDATED, { setting: 'keybindings' });

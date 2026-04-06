@@ -39,8 +39,8 @@ export function SidebarConversationRow({
           aria-hidden="true"
           className={`flex h-8 w-8 items-center justify-center border text-[11px] font-normal tracking-[0.01em] transition ${
             isActive
-              ? 'border-white/20 bg-white/[0.08] text-white/70'
-              : 'border-white/10 bg-transparent text-white/40 group-hover:border-white/20 group-hover:bg-white/[0.05] group-hover:text-white/60'
+              ? 'border-[var(--border-strong)] bg-[var(--bg-active)] text-[var(--text-secondary)]'
+              : 'border-[var(--border-default)] bg-transparent text-[var(--text-muted)] group-hover:border-[var(--border-strong)] group-hover:bg-[var(--bg-hover)] group-hover:text-[var(--text-secondary)]'
           }`}
           title={primaryLabel}
         >
@@ -61,19 +61,19 @@ export function SidebarConversationRow({
       ) : null}
 
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-normal leading-[18px] text-white/70" title={primaryLabel}>
+        <div className="truncate text-[13px] font-normal leading-[18px] text-[var(--text-secondary)]" title={primaryLabel}>
           {primaryLabel}
         </div>
         {secondaryLabel ? (
           <div
             className={`truncate pt-0.5 text-[11px] leading-4 ${
               status === 'streaming'
-                ? 'animate-pulse text-white/30'
+                ? 'animate-pulse text-[var(--text-faint)]'
                 : status === 'error'
-                  ? 'text-white/50'
+                  ? 'text-[var(--text-tertiary)]'
                   : status === 'aborted'
-                    ? 'text-white/30'
-                    : 'text-white/30'
+                    ? 'text-[var(--text-faint)]'
+                    : 'text-[var(--text-faint)]'
             }`}
             title={secondaryLabel}
           >
@@ -85,7 +85,7 @@ export function SidebarConversationRow({
       <div className="relative ml-2 h-4 w-5 shrink-0 self-start">
         {timestampLabel ? (
           <span
-            className={`absolute inset-0 text-right text-[10px] font-normal leading-4 tabular-nums text-white/30 transition-opacity group-hover:opacity-0 ${
+            className={`absolute inset-0 text-right text-[10px] font-normal leading-4 tabular-nums text-[var(--text-faint)] transition-opacity group-hover:opacity-0 ${
               hideTimestamp || showJumpHint ? 'opacity-0' : ''
             }`}
           >
@@ -93,7 +93,7 @@ export function SidebarConversationRow({
           </span>
         ) : null}
         {showJumpHint && jumpLabel ? (
-          <span className="absolute right-0 top-0 inline-flex h-5 items-center border border-white/10 bg-white/[0.05] px-1.5 font-mono text-[10px] leading-none text-white/50">
+          <span className="absolute right-0 top-0 inline-flex h-5 items-center border border-[var(--border-default)] bg-[var(--bg-hover)] px-1.5 font-mono text-[10px] leading-none text-[var(--text-tertiary)]">
             {jumpLabel}
           </span>
         ) : null}

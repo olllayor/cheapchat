@@ -96,19 +96,19 @@ const ComposerAttachmentItem = memo(
       <AttachmentHoverCard>
         <AttachmentHoverCardTrigger asChild>
           <Attachment
-            className="h-7 max-w-[148px] gap-1.5 border border-white/10 bg-white/[0.03] pl-1.5 pr-1 text-text-secondary hover:bg-white/[0.05] hover:text-text-primary"
+            className="h-7 max-w-[148px] gap-1.5 border border-[var(--border-default)] bg-[var(--bg-subtle)] pl-1.5 pr-1 text-text-secondary hover:bg-[var(--bg-hover)] hover:text-text-primary"
             data={attachment}
             onRemove={handleRemove}
           >
-            <div className="flex size-[18px] shrink-0 items-center justify-center overflow-hidden bg-white/[0.06]">
+            <div className="flex size-[18px] shrink-0 items-center justify-center overflow-hidden bg-[var(--bg-hover)]">
               {inlinePreview}
             </div>
             <AttachmentInfo className="min-w-0 max-w-[92px] flex-none text-[11px] leading-none text-inherit" />
-            <AttachmentRemove className="!ml-0 !size-4 shrink-0 !p-0 !opacity-100 text-white/35 transition hover:bg-white/[0.08] hover:text-white [&>svg]:size-[10px]" />
+            <AttachmentRemove className="!ml-0 !size-4 shrink-0 !p-0 !opacity-100 text-[var(--text-faint)] transition hover:bg-[var(--bg-active)] hover:text-white [&>svg]:size-[10px]" />
           </Attachment>
         </AttachmentHoverCardTrigger>
         <AttachmentHoverCardContent
-          className="max-w-[240px] border border-white/10 bg-bg-elevated px-2.5 py-1.5 text-[12px] font-normal text-white"
+          className="max-w-[240px] border border-[var(--border-default)] bg-bg-elevated px-2.5 py-1.5 text-[12px] font-normal text-white"
           side="top"
           sideOffset={6}
         >
@@ -199,12 +199,12 @@ function ComposerFooter({
 
   return (
     <>
-      {footerMessage ? <div className="px-4 pb-2 text-[11px] leading-5 text-white/50">{footerMessage}</div> : null}
+      {footerMessage ? <div className="px-4 pb-2 text-[11px] leading-5 text-[var(--text-tertiary)]">{footerMessage}</div> : null}
 
       <PromptInputFooter className="flex items-center justify-between px-3.5 pb-3 pt-0.5">
         <PromptInputTools className="flex items-center gap-1">
           <PromptInputButton
-            className="size-8 border border-white/10 bg-transparent text-white/40 hover:bg-white/[0.05] hover:text-white"
+            className="size-8 border border-[var(--border-default)] bg-transparent text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-white"
             disabled={disabled || isStreaming}
             onClick={() => attachments.openFileDialog()}
             tooltip="Attach from disk"
@@ -243,7 +243,7 @@ function ComposerFooter({
           ) : null}
 
           <PromptInputSubmit
-            className="inline-flex size-8 items-center justify-center bg-white text-bg-base transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-30"
+            className="inline-flex size-8 items-center justify-center bg-primary text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-30"
             disabled={isStreaming ? false : !hasSubmittableContent || disabled || Boolean(unsupportedReason)}
             onStop={onAbort}
             size="icon-sm"
@@ -362,7 +362,7 @@ export function Composer({
       <div className="mx-auto max-w-content-max">
         <PromptInput
           accept={ATTACHMENT_ACCEPT_ATTRIBUTE}
-          className="overflow-hidden border border-white/10 bg-bg-base transition-all focus-within:border-white/20"
+          className="overflow-hidden border border-[var(--border-default)] bg-bg-base transition-colors focus-within:border-[var(--border-strong)] focus-within:ring-2 focus-within:ring-[var(--border-strong)]/20"
           globalDrop
           maxFileSize={MAX_ATTACHMENT_SIZE_BYTES}
           maxFiles={MAX_ATTACHMENT_COUNT}
@@ -382,7 +382,7 @@ export function Composer({
               disabled={disabled}
               rows={1}
               placeholder="Message..."
-              className="w-full min-h-10.5 resize-none border-0 bg-transparent px-0 py-0 text-[14.5px] leading-6 text-text-primary outline-none placeholder:text-white/28 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full min-h-10.5 resize-none border-0 bg-transparent px-0 py-0 text-[14.5px] leading-6 text-text-primary outline-none placeholder:text-[var(--text-faint)] disabled:cursor-not-allowed disabled:opacity-60"
               style={{ maxHeight: '180px' }}
               name="message"
             />

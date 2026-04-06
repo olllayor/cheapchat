@@ -221,7 +221,7 @@ export function CodeBlock({ code, language, isIncomplete = false, className }: C
   return (
     <div
       className={cn(
-        'group/code my-3 overflow-hidden border border-border-default bg-white/[0.03]',
+        'group/code my-3 overflow-hidden border border-border-default bg-[var(--bg-subtle)]',
         className
       )}
     >
@@ -237,7 +237,7 @@ export function CodeBlock({ code, language, isIncomplete = false, className }: C
           <button
             type="button"
             onClick={handleDownload}
-            className="p-1.5 text-text-muted transition hover:bg-white/6 hover:text-text-primary"
+            className="p-1.5 text-text-muted transition hover:bg-[var(--bg-subtle)] hover:text-text-primary"
             title="Download code"
           >
             <Download className="h-3.25 w-3.25" />
@@ -245,10 +245,10 @@ export function CodeBlock({ code, language, isIncomplete = false, className }: C
           <button
             type="button"
             onClick={handleCopy}
-            className="p-1.5 text-text-muted transition hover:bg-white/6 hover:text-text-primary"
+            className="p-1.5 text-text-muted transition hover:bg-[var(--bg-subtle)] hover:text-text-primary"
             title={copied ? 'Copied!' : 'Copy code'}
           >
-            {copied ? <Check className="h-3.25 w-3.25 text-white/50" /> : <Copy className="h-3.25 w-3.25" />}
+            {copied ? <Check className="h-3.25 w-3.25 text-[var(--text-tertiary)]" /> : <Copy className="h-3.25 w-3.25" />}
           </button>
         </div>
       </div>

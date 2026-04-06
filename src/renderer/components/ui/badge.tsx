@@ -9,15 +9,15 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-white/10 text-white [a&]:hover:bg-white/20",
+        default: "bg-[var(--bg-active)] text-[var(--text-primary)] [a&]:hover:bg-[var(--bg-hover)]",
         secondary:
-          "bg-white/5 text-white/80 [a&]:hover:bg-white/10",
+          "bg-[var(--bg-subtle)] text-[var(--text-secondary)] [a&]:hover:bg-[var(--bg-hover)]",
         destructive:
-          "bg-white/10 text-white focus-visible:ring-white/20 dark:focus-visible:ring-white/40 [a&]:hover:bg-white/20",
+          "bg-[var(--bg-active)] text-[var(--text-primary)] focus-visible:ring-[var(--border-strong)] dark:focus-visible:ring-[var(--border-medium)] [a&]:hover:bg-[var(--bg-hover)]",
         outline:
-          "border-white/20 text-white [a&]:hover:bg-white/10",
-        ghost: "[a&]:hover:bg-white/10 [a&]:hover:text-white",
-        link: "text-white/80 underline-offset-4 [a&]:hover:underline",
+          "border-[var(--border-strong)] text-[var(--text-primary)] [a&]:hover:bg-[var(--bg-hover)]",
+        ghost: "[a&]:hover:bg-[var(--bg-hover)] [a&]:hover:text-[var(--text-primary)]",
+        link: "text-[var(--text-secondary)] underline-offset-4 [a&]:hover:underline",
       },
     },
     defaultVariants: {

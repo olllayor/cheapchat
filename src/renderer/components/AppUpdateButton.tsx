@@ -37,10 +37,10 @@ export function AppUpdateButton({ updateState, onClick }: AppUpdateButtonProps) 
     );
   const toneClass =
     updateState.status === 'downloaded'
-      ? 'border-white/20 bg-white/[0.05] text-white/70 hover:border-white/30 hover:bg-white/[0.08] hover:text-white'
+      ? 'border-[var(--border-strong)] bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-active)] hover:text-white'
       : updateState.status === 'downloading'
-        ? 'border-white/10 bg-transparent text-white/30'
-        : 'border-white/10 bg-transparent text-white/50 hover:border-white/20 hover:bg-white/[0.05] hover:text-white/70';
+        ? 'border-[var(--border-default)] bg-transparent text-[var(--text-faint)]'
+        : 'border-[var(--border-default)] bg-transparent text-[var(--text-tertiary)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-secondary)]';
 
   return (
     <div

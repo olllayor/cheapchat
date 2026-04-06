@@ -107,7 +107,7 @@ export function getStatusBadge(state: ToolState) {
       return (
         <Badge
           variant="outline"
-          className="gap-1.25 border-white/10 bg-white/[0.03] px-2.25 py-0.75 text-[9.5px] font-normal text-white/50"
+          className="gap-1.25 border-[var(--border-default)] bg-[var(--bg-subtle)] px-2.25 py-0.75 text-[9.5px] font-normal text-[var(--text-tertiary)]"
         >
           <CircleDashed className="size-3 animate-spin" />
           Pending
@@ -117,7 +117,7 @@ export function getStatusBadge(state: ToolState) {
       return (
         <Badge
           variant="outline"
-          className="gap-1.25 border-white/10 bg-white/[0.03] px-2.25 py-0.75 text-[9.5px] font-normal text-white/50"
+          className="gap-1.25 border-[var(--border-default)] bg-[var(--bg-subtle)] px-2.25 py-0.75 text-[9.5px] font-normal text-[var(--text-tertiary)]"
         >
           <Wrench className="size-3" />
           Running
@@ -127,7 +127,7 @@ export function getStatusBadge(state: ToolState) {
       return (
         <Badge
           variant="outline"
-          className="gap-1.25 border-white/20 bg-white/[0.05] px-2.25 py-0.75 text-[9.5px] font-normal text-white/70"
+          className="gap-1.25 border-[var(--border-strong)] bg-[var(--bg-hover)] px-2.25 py-0.75 text-[9.5px] font-normal text-[var(--text-secondary)]"
         >
           <ShieldAlert className="size-3" />
           Awaiting Approval
@@ -137,7 +137,7 @@ export function getStatusBadge(state: ToolState) {
       return (
         <Badge
           variant="outline"
-          className="gap-1.25 border-white/10 bg-white/[0.03] px-2.25 py-0.75 text-[9.5px] font-normal text-white/50"
+          className="gap-1.25 border-[var(--border-default)] bg-[var(--bg-subtle)] px-2.25 py-0.75 text-[9.5px] font-normal text-[var(--text-tertiary)]"
         >
           <ArrowRightLeft className="size-3" />
           Responded
@@ -147,7 +147,7 @@ export function getStatusBadge(state: ToolState) {
       return (
         <Badge
           variant="outline"
-          className="gap-1.25 border-white/20 bg-white/[0.05] px-2.25 py-0.75 text-[9.5px] font-normal text-white/70"
+          className="gap-1.25 border-[var(--border-strong)] bg-[var(--bg-hover)] px-2.25 py-0.75 text-[9.5px] font-normal text-[var(--text-secondary)]"
         >
           <CheckCircle2 className="size-3" />
           Completed
@@ -157,7 +157,7 @@ export function getStatusBadge(state: ToolState) {
       return (
         <Badge
           variant="outline"
-          className="gap-1.25 border-white/30 bg-white/[0.05] px-2.25 py-0.75 text-[9.5px] font-normal text-white/70"
+          className="gap-1.25 border-[var(--border-strong)] bg-[var(--bg-hover)] px-2.25 py-0.75 text-[9.5px] font-normal text-[var(--text-secondary)]"
         >
           <CircleAlert className="size-3" />
           Error
@@ -167,7 +167,7 @@ export function getStatusBadge(state: ToolState) {
       return (
         <Badge
           variant="outline"
-          className="gap-1.25 border-white/10 bg-white/[0.03] px-2.25 py-0.75 text-[9.5px] font-normal text-white/50"
+          className="gap-1.25 border-[var(--border-default)] bg-[var(--bg-subtle)] px-2.25 py-0.75 text-[9.5px] font-normal text-[var(--text-tertiary)]"
         >
           <Ban className="size-3" />
           Denied
@@ -177,7 +177,7 @@ export function getStatusBadge(state: ToolState) {
       return (
         <Badge
           variant="outline"
-          className="gap-1.25 border-white/10 bg-white/[0.03] px-2.25 py-0.75 text-[9.5px] font-normal text-white/50"
+          className="gap-1.25 border-[var(--border-default)] bg-[var(--bg-subtle)] px-2.25 py-0.75 text-[9.5px] font-normal text-[var(--text-tertiary)]"
         >
           <Loader2 className="size-3 animate-spin" />
           Running
@@ -196,7 +196,7 @@ export const Tool = ({
     <Collapsible
     defaultOpen={defaultOpen}
     className={cn(
-      "group/tool w-full overflow-hidden border border-white/10 bg-white/[0.03]",
+      "group/tool w-full overflow-hidden border border-[var(--border-default)] bg-[var(--bg-subtle)]",
       className
     )}
     {...props}
@@ -238,20 +238,20 @@ export const ToolHeader = ({
   return (
     <CollapsibleTrigger
       className={cn(
-        "flex w-full items-center justify-between gap-3.5 px-3.5 py-3 text-left transition hover:bg-white/[0.018]",
+        "flex w-full items-center justify-between gap-3.5 px-3.5 py-3 text-left transition hover:bg-[var(--bg-subtle)]",
         className
       )}
       {...props}
     >
       <div className="flex min-w-0 items-center gap-2.5">
-        <span className="inline-flex size-9 shrink-0 items-center justify-center border border-white/10 bg-white/[0.05] text-white/50">
+        <span className="inline-flex size-9 shrink-0 items-center justify-center border border-[var(--border-default)] bg-[var(--bg-hover)] text-[var(--text-tertiary)]">
           <Wrench className="size-3.5" />
         </span>
         <div className="min-w-0">
-          <div className="truncate text-[13.5px] font-normal tracking-[-0.02em] text-white/70">
+          <div className="truncate text-[13.5px] font-normal tracking-[-0.02em] text-[var(--text-secondary)]">
             {resolvedName}
           </div>
-          <div className="truncate pt-0.5 text-[10.5px] text-white/30">
+          <div className="truncate pt-0.5 text-[10.5px] text-[var(--text-faint)]">
             {metaLabel}
           </div>
         </div>
@@ -259,7 +259,7 @@ export const ToolHeader = ({
 
       <div className="flex shrink-0 items-center gap-2">
         {getStatusBadge(state)}
-        <span className="inline-flex size-7.5 items-center justify-center border border-white/10 bg-white/[0.03] text-white/30 transition group-hover/tool:text-white/50">
+        <span className="inline-flex size-7.5 items-center justify-center border border-[var(--border-default)] bg-[var(--bg-subtle)] text-[var(--text-faint)] transition group-hover/tool:text-[var(--text-tertiary)]">
           <ChevronDown className="size-3.25 transition-transform group-data-[state=open]/tool:rotate-180" />
         </span>
       </div>
@@ -271,7 +271,7 @@ export type ToolContentProps = ComponentProps<typeof CollapsibleContent>;
 
 export const ToolContent = ({ className, ...props }: ToolContentProps) => (
   <CollapsibleContent
-    className={cn("border-t border-white/10 px-3.5 pb-3.5 pt-3", className)}
+    className={cn("border-t border-[var(--border-default)] px-3.5 pb-3.5 pt-3", className)}
     {...props}
   />
 );
@@ -286,13 +286,13 @@ export const ToolInput = ({ className, input, ...props }: ToolInputProps) => {
   return (
     <div
       className={cn(
-        "border border-white/10 bg-white/[0.03]",
+        "border border-[var(--border-default)] bg-[var(--bg-subtle)]",
         className
       )}
       {...props}
     >
-      <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
-        <span className="text-[9.5px] font-normal uppercase tracking-[0.14em] text-white/30">
+      <div className="flex items-center justify-between border-b border-[var(--border-default)] px-3 py-2">
+        <span className="text-[9.5px] font-normal uppercase tracking-[0.14em] text-[var(--text-faint)]">
           Input
         </span>
       </div>
@@ -316,18 +316,18 @@ export const ToolOutput = ({
     return (
       <div
         className={cn(
-          "border border-white/30 bg-white/[0.05] px-3 py-3 text-white/70",
+          "border border-[var(--border-strong)] bg-[var(--bg-hover)] px-3 py-3 text-[var(--text-secondary)]",
           className
         )}
         {...props}
       >
         <div className="flex items-start gap-2">
-          <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-white/70" />
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-[var(--text-secondary)]" />
           <div className="min-w-0">
-            <div className="text-[10px] font-normal uppercase tracking-[0.14em] text-white/50">
+            <div className="text-[10px] font-normal uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
               Error
             </div>
-            <div className="mt-1 text-[12.5px] leading-5 text-white/70">
+            <div className="mt-1 text-[12.5px] leading-5 text-[var(--text-secondary)]">
               {errorText}
             </div>
           </div>
@@ -343,17 +343,17 @@ export const ToolOutput = ({
   return (
     <div
       className={cn(
-        "border border-white/10 bg-white/[0.03]",
+        "border border-[var(--border-default)] bg-[var(--bg-subtle)]",
         className
       )}
       {...props}
     >
-      <div className="flex items-center justify-between border-b border-white/10 px-3 py-2">
-        <span className="text-[9.5px] font-normal uppercase tracking-[0.14em] text-white/30">
+      <div className="flex items-center justify-between border-b border-[var(--border-default)] px-3 py-2">
+        <span className="text-[9.5px] font-normal uppercase tracking-[0.14em] text-[var(--text-faint)]">
           Output
         </span>
       </div>
-      <div className="px-3 py-2.5 text-[12.5px] leading-[1.65] text-white/70">
+      <div className="px-3 py-2.5 text-[12.5px] leading-[1.65] text-[var(--text-secondary)]">
         {typeof output === "string" ? (
           <MessageResponse>{output}</MessageResponse>
         ) : (

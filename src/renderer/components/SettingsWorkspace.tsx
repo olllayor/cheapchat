@@ -23,6 +23,7 @@ import type {
   AppUpdateSnapshot,
   ConversationPage,
   ConversationStats,
+  DesignTheme,
   DiagnosticsSnapshot,
   FontFamilyOverride,
   KeybindingCommand,
@@ -70,6 +71,7 @@ type SettingsWorkspaceProps = {
   onSaveKey: () => void;
   onValidateKey: () => void;
   onThemeModeChange: (mode: ThemeMode) => void;
+  onDesignThemeChange: (theme: DesignTheme) => void;
   onUiFontSizeChange: (value: number) => void;
   onCodeFontSizeChange: (value: number) => void;
   onUiFontFamilyChange: (value: FontFamilyOverride) => void;
@@ -126,6 +128,7 @@ export function SettingsWorkspace({
   onSaveKey,
   onValidateKey,
   onThemeModeChange,
+  onDesignThemeChange,
   onUiFontSizeChange,
   onCodeFontSizeChange,
   onUiFontFamilyChange,
@@ -165,7 +168,7 @@ export function SettingsWorkspace({
                   onClick={() => onNavigate(item.key)}
                   className={`flex h-9 w-full items-center gap-2.5 px-3 text-left text-[13px] font-normal transition ${
                     isActive
-                      ? 'border-l-2 border-white/20 bg-white/[0.04] text-text-primary'
+                      ? 'border-l-2 border-[var(--border-strong)] bg-[var(--bg-ghost)] text-text-primary'
                       : 'text-text-tertiary hover:bg-bg-hover hover:text-text-primary'
                   }`}
                 >
@@ -235,6 +238,7 @@ export function SettingsWorkspace({
                 <AppearancePage
                   settings={settings}
                   onThemeModeChange={onThemeModeChange}
+                  onDesignThemeChange={onDesignThemeChange}
                   onUiFontSizeChange={onUiFontSizeChange}
                   onCodeFontSizeChange={onCodeFontSizeChange}
                   onUiFontFamilyChange={onUiFontFamilyChange}
@@ -419,6 +423,7 @@ function GeneralPage({
 function AppearancePage({
   settings,
   onThemeModeChange,
+  onDesignThemeChange,
   onUiFontSizeChange,
   onCodeFontSizeChange,
   onUiFontFamilyChange,
@@ -426,6 +431,7 @@ function AppearancePage({
 }: {
   settings: SettingsSummary | null;
   onThemeModeChange: (mode: ThemeMode) => void;
+  onDesignThemeChange: (theme: DesignTheme) => void;
   onUiFontSizeChange: (value: number) => void;
   onCodeFontSizeChange: (value: number) => void;
   onUiFontFamilyChange: (value: FontFamilyOverride) => void;
@@ -433,6 +439,7 @@ function AppearancePage({
 }) {
   const appearance = settings?.appearance ?? DEFAULT_SETTINGS_APPEARANCE;
   const themeMode = appearance.themeMode;
+  const designTheme = appearance.designTheme;
 
   return (
     <>
@@ -442,6 +449,12 @@ function AppearancePage({
           description="Choose whether Atlas follows your system appearance or stays fixed."
         >
           <ThemeModePicker current={themeMode} onChange={onThemeModeChange} />
+        </SettingsStackedRow>
+        <SettingsStackedRow
+          title="Design theme"
+          description="Choose a design system aesthetic for the interface."
+        >
+          <DesignThemePicker current={designTheme} onChange={onDesignThemeChange} />
         </SettingsStackedRow>
       </SettingsGroup>
 
@@ -590,7 +603,7 @@ function KeyboardPage({
                       onKeyDown={isCapturing ? handleCapture(definition.command) : undefined}
                       className={`inline-flex h-9 min-w-[128px] items-center justify-center border px-3 font-mono text-[12px] transition ${
                         isCapturing
-                          ? 'border-white/20 bg-white/[0.06] text-white'
+                          ? 'border-[var(--border-strong)] bg-[var(--bg-hover)] text-white'
                           : 'border-border-default bg-bg-subtle text-text-primary hover:bg-bg-hover'
                       }`}
                     >
@@ -600,7 +613,7 @@ function KeyboardPage({
                   </div>
                 </div>
                 {conflicts.length > 0 ? (
-                  <div className="mt-3 text-[11.5px] text-white/40">
+                  <div className="mt-3 text-[11.5px] text-[var(--text-muted)]">
                     Also bound to{' '}
                     {conflicts.map((command) => APP_COMMANDS_BY_ID[command].title).join(', ')}. The last matching rule wins.
                   </div>
@@ -634,7 +647,7 @@ function UsagePage({ usageSummary }: { usageSummary: UsageSummary }) {
             {provider.meterValue != null ? (
               <div className="mt-3 flex items-center gap-3">
                 <div className="h-2 flex-1 overflow-hidden bg-bg-subtle">
-                  <div className="h-full bg-white/40" style={{ width: `${provider.meterValue}%` }} />
+                  <div className="h-full bg-[var(--text-muted)]" style={{ width: `${provider.meterValue}%` }} />
                 </div>
                 <span className="w-12 text-right text-[12px] text-text-tertiary">{provider.meterLabel}</span>
               </div>
@@ -701,7 +714,7 @@ function SettingsGroup({ title, children }: PropsWithChildren<{ title: string }>
   return (
     <section>
       <div className="mb-3 text-[13px] font-normal text-text-secondary">{title}</div>
-      <div className="overflow-hidden border border-border-default bg-white/[0.03]">
+      <div className="overflow-hidden border border-border-default bg-[var(--bg-subtle)]">
         {children}
       </div>
     </section>
@@ -888,6 +901,37 @@ function ThemeModePicker({ current, onChange }: { current: ThemeMode; onChange: 
   );
 }
 
+function DesignThemePicker({ current, onChange }: { current: DesignTheme; onChange: (theme: DesignTheme) => void }) {
+  const items: Array<{ theme: DesignTheme; label: string; description: string }> = [
+    { theme: 'xai', label: 'xAI', description: 'Brutalist monochrome' },
+    { theme: 'default', label: 'Default', description: 'Modern balanced' },
+    { theme: 'cursor', label: 'Cursor', description: 'Warm minimalism' },
+  ];
+
+  return (
+    <div className="inline-flex border border-border-default bg-bg-subtle p-1">
+      {items.map((item) => {
+        const isActive = item.theme === current;
+
+        return (
+          <button
+            key={item.theme}
+            type="button"
+            onClick={() => onChange(item.theme)}
+            className={`inline-flex h-9 items-center px-3 text-[13px] font-normal transition ${
+              isActive
+                ? 'bg-bg-elevated text-text-primary'
+                : 'text-text-tertiary hover:text-text-primary'
+            }`}
+          >
+            <span>{item.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function ProviderPicker({
   current,
   onChange,
@@ -964,7 +1008,7 @@ function Switch({
       aria-label={ariaLabel}
       onClick={() => onCheckedChange(!checked)}
       className={`relative inline-flex h-7 w-11 items-center transition ${
-        checked ? 'bg-white/30' : 'bg-bg-subtle'
+        checked ? 'bg-[var(--bg-active)]' : 'bg-bg-subtle'
       }`}
     >
       <span
@@ -980,9 +1024,9 @@ function StatusPill({
 }: PropsWithChildren<{ tone?: 'success' | 'warning' | 'muted' }>) {
   const toneClass =
     tone === 'success'
-      ? 'border-white/20 bg-white/[0.06] text-white/70'
+      ? 'border-[var(--border-strong)] bg-[var(--bg-hover)] text-[var(--text-secondary)]'
       : tone === 'warning'
-        ? 'border-white/15 bg-white/[0.04] text-white/50'
+        ? 'border-[var(--border-default)] bg-[var(--bg-ghost)] text-[var(--text-tertiary)]'
         : 'border-border-default bg-bg-subtle text-text-tertiary';
 
   return (

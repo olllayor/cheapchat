@@ -25,10 +25,10 @@ export function XAIModels({
     <section id="models" className="py-24 px-6">
       <div className="max-w-[1200px] mx-auto">
         <div className="mb-16">
-          <span className="xai-mono text-xs uppercase tracking-[1px] text-white/50">{title}</span>
+          <span className="xai-mono text-xs uppercase tracking-[1px] text-[var(--text-tertiary)]">{title}</span>
         </div>
 
-        <div className="border border-white/10">
+        <div className="border border-[var(--border-default)]">
           <div className="grid grid-cols-2 md:grid-cols-3 divide-x divide-white/10">
             {specs.map((spec, index) => (
               <div
@@ -36,8 +36,8 @@ export function XAIModels({
                 className={`p-6 ${
                   index >= specs.length - (specs.length % 3 === 0 ? 3 : specs.length % 3)
                     ? ''
-                    : 'border-b border-white/10 md:border-b-0'
-                } md:odd:border-b md:odd:border-white/10`}
+                    : 'border-b border-[var(--border-default)] md:border-b-0'
+                } md:odd:border-b md:odd:border-[var(--border-default)]`}
               >
                 <div className="xai-meta mb-2">{spec.label}</div>
                 <div className="xai-mono text-2xl font-light text-white">{spec.value}</div>

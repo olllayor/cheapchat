@@ -4,6 +4,9 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { initPostHog } from './lib/posthog';
 import './styles.css';
+import './themes/xai.css';
+import './themes/default.css';
+import './themes/cursor.css';
 
 initPostHog();
 

@@ -61,7 +61,7 @@ export const Confirmation = ({
       <Alert
         variant={destructive ? "destructive" : "default"}
         className={cn(
-          "grid-cols-1 gap-0 border border-white/10 bg-white/[0.03] px-3.5 py-3 text-white",
+          "grid-cols-1 gap-0 border border-[var(--border-default)] bg-[var(--bg-subtle)] px-3.5 py-3 text-white",
           className
         )}
         {...props}
@@ -75,7 +75,7 @@ export const Confirmation = ({
 export type ConfirmationTitleProps = ComponentProps<typeof AlertTitle>;
 
 export const ConfirmationTitle = ({ className, ...props }: ConfirmationTitleProps) => (
-  <AlertTitle className={cn("col-start-1 text-[12px] font-normal text-white/70", className)} {...props} />
+  <AlertTitle className={cn("col-start-1 text-[12px] font-normal text-[var(--text-secondary)]", className)} {...props} />
 );
 
 function ConditionalConfirmation({
@@ -100,7 +100,7 @@ export const ConfirmationRequest = ({ children }: ConfirmationRequestProps) => {
   const { state } = useConfirmation();
   return (
     <ConditionalConfirmation when={state === "approval-requested"}>
-      <AlertDescription className="col-start-1 mt-1 text-[12.5px] leading-5.5 text-white/50">
+      <AlertDescription className="col-start-1 mt-1 text-[12.5px] leading-5.5 text-[var(--text-tertiary)]">
         {children}
       </AlertDescription>
     </ConditionalConfirmation>
@@ -115,7 +115,7 @@ export const ConfirmationAccepted = ({ children }: ConfirmationAcceptedProps) =>
   const { approval, state } = useConfirmation();
   return (
     <ConditionalConfirmation when={isAcceptedState(approval, state)}>
-      <AlertDescription className="col-start-1 mt-1 flex items-center gap-2 text-[12.5px] leading-5 text-white/50">
+      <AlertDescription className="col-start-1 mt-1 flex items-center gap-2 text-[12.5px] leading-5 text-[var(--text-tertiary)]">
         {children}
       </AlertDescription>
     </ConditionalConfirmation>
@@ -130,7 +130,7 @@ export const ConfirmationRejected = ({ children }: ConfirmationRejectedProps) =>
   const { approval, state } = useConfirmation();
   return (
     <ConditionalConfirmation when={isRejectedState(approval, state)}>
-      <AlertDescription className="col-start-1 mt-1 flex items-center gap-2 text-[12.5px] leading-5 text-white/50">
+      <AlertDescription className="col-start-1 mt-1 flex items-center gap-2 text-[12.5px] leading-5 text-[var(--text-tertiary)]">
         {children}
       </AlertDescription>
     </ConditionalConfirmation>

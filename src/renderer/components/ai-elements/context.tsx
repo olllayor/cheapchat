@@ -145,7 +145,7 @@ export const ContextTrigger = ({
       <button
         type="button"
           className={cn(
-            "relative inline-flex size-[34px] items-center justify-center border border-white/10 bg-white/[0.05] text-[9px] font-normal tabular-nums text-white/50 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white/70",
+            "relative inline-flex size-[34px] items-center justify-center border border-[var(--border-default)] bg-[var(--bg-hover)] text-[9px] font-normal tabular-nums text-[var(--text-tertiary)] transition hover:border-[var(--border-strong)] hover:bg-[var(--bg-active)] hover:text-[var(--text-secondary)]",
             className
           )}
         {...props}
@@ -189,7 +189,7 @@ export const ContextContent = ({ className, ...props }: ContextContentProps) => 
     align="end"
     sideOffset={12}
       className={cn(
-        "w-[292px] border border-white/10 bg-bg-elevated p-0 text-text-primary",
+        "w-[292px] border border-[var(--border-default)] bg-bg-elevated p-0 text-text-primary",
         className
       )}
     {...props}
@@ -209,13 +209,13 @@ export const ContextContentHeader = ({
     <div className={cn("px-4 pt-3.5", className)} {...props}>
       {children ?? (
         <div className="space-y-1.5">
-          <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-white/42">
+          <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--text-muted)]">
             Context Window
           </div>
-          <div className="text-[13px] font-medium leading-none tracking-tight text-white/92">
-            <span className="tabular-nums font-semibold text-white">{percentageLabel}%</span>
-            <span className="px-1.5 text-white/32">•</span>
-            <span className="text-[13px] font-medium text-white/92">
+          <div className="text-[13px] font-medium leading-none tracking-tight text-[var(--text-primary)]">
+            <span className="tabular-nums font-normal text-white">{percentageLabel}%</span>
+            <span className="px-1.5 text-[var(--text-faint)]">•</span>
+            <span className="text-[13px] font-medium text-[var(--text-primary)]">
               {formatTokenCount(usedTokens)}/{formatTokenCount(maxTokens)} context used
             </span>
           </div>
@@ -235,11 +235,11 @@ export const ContextContentBody = ({
   const { processedTokens } = useContextData();
 
   return (
-    <div className={cn("px-4 pt-2 text-[13px] leading-none text-white/56", className)} {...props}>
+    <div className={cn("px-4 pt-2 text-[13px] leading-none text-[var(--text-secondary)]", className)} {...props}>
       {children ?? (
         <span>
           Total processed:{" "}
-          <span className="tabular-nums text-white/70">{formatTokenCount(processedTokens)} tokens</span>
+          <span className="tabular-nums text-[var(--text-secondary)]">{formatTokenCount(processedTokens)} tokens</span>
         </span>
       )}
     </div>
@@ -259,7 +259,7 @@ export const ContextContentFooter = ({
   return (
     <div
       className={cn(
-        "px-4 pb-3.5 pt-2 text-[13px] leading-[1.25] text-white/44",
+        "px-4 pb-3.5 pt-2 text-[13px] leading-[1.25] text-[var(--text-muted)]",
         className
       )}
       {...props}

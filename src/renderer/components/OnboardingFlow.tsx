@@ -58,9 +58,9 @@ export function OnboardingFlow({
   if (step === 'done') {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="w-full max-w-md border border-white/10 bg-bg-base p-8 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center border border-white/20 bg-white/[0.05]">
-            <svg className="h-7 w-7 text-white/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <div className="w-full max-w-md border border-[var(--border-default)] bg-bg-base p-8 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center border border-[var(--border-strong)] bg-[var(--bg-hover)]">
+            <svg className="h-7 w-7 text-[var(--text-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           </div>
@@ -82,7 +82,7 @@ export function OnboardingFlow({
 
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <div className="w-full max-w-md border border-white/10 bg-bg-base p-8">
+      <div className="w-full max-w-md border border-[var(--border-default)] bg-bg-base p-8">
         <div className="text-center">
           <p className="text-xs font-normal uppercase tracking-[0.2em] text-text-muted">Welcome to</p>
           <h1 className="mt-2 text-2xl font-normal text-text-primary">Atlas</h1>
@@ -93,7 +93,7 @@ export function OnboardingFlow({
 
         <div className="mt-8">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center border border-white/20 bg-white/[0.05] text-sm font-normal text-text-primary">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center border border-[var(--border-strong)] bg-[var(--bg-hover)] text-sm font-normal text-text-primary">
               1
             </div>
             <div>
@@ -112,7 +112,7 @@ export function OnboardingFlow({
             </div>
           </div>
 
-          <div className="mt-5 inline-flex border border-white/10 bg-bg-subtle p-1">
+          <div className="mt-5 inline-flex border border-[var(--border-default)] bg-bg-subtle p-1">
             {(['openrouter', 'glm'] as const).map((id) => {
               const isActive = id === providerId;
 
@@ -166,7 +166,7 @@ export function OnboardingFlow({
           </button>
 
           {error && (
-            <p className="mt-3 text-xs text-white/50">{error}</p>
+            <p className="mt-3 text-xs text-[var(--text-tertiary)]">{error}</p>
           )}
         </div>
 

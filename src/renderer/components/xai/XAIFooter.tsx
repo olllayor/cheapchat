@@ -17,7 +17,7 @@ export function XAIFooter({
   onCTAClick,
 }: XAIFooterProps) {
   return (
-    <footer className="py-24 px-6 border-t border-white/10">
+    <footer className="py-24 px-6 border-t border-[var(--border-default)]">
       <div className="max-w-[1200px] mx-auto">
         <div className="flex flex-col items-center text-center mb-16">
           <h2 className="xai-mono text-4xl md:text-6xl font-light text-white mb-6">
@@ -31,7 +31,7 @@ export function XAIFooter({
           </button>
         </div>
 
-        <hr className="border-white/10 mb-12" />
+        <hr className="border-[var(--border-default)] mb-12" />
 
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           <span className="xai-mono text-sm uppercase tracking-[1.4px] text-white">
@@ -43,7 +43,7 @@ export function XAIFooter({
               <a
                 key={link.label}
                 href={link.href}
-                className="xai-sans text-sm text-white hover:text-white/50 transition-colors"
+                className="xai-sans text-sm text-white hover:text-[var(--text-tertiary)] transition-colors"
               >
                 {link.label}
               </a>

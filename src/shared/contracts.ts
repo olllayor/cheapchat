@@ -106,6 +106,7 @@ export type ProviderCredentialSummary = {
 };
 
 export type ThemeMode = 'light' | 'dark' | 'system';
+export type DesignTheme = 'default' | 'xai' | 'cursor';
 export type FontFamilyOverride = string | null;
 
 export const UI_FONT_SIZE_MIN = 13;
@@ -120,6 +121,7 @@ export type SettingsSection = 'general' | 'appearance' | 'keyboard' | 'usage';
 
 export type SettingsAppearanceSummary = {
   themeMode: ThemeMode;
+  designTheme: DesignTheme;
   uiFontSize: number;
   codeFontSize: number;
   uiFontFamily: FontFamilyOverride;
@@ -128,6 +130,7 @@ export type SettingsAppearanceSummary = {
 
 export const DEFAULT_SETTINGS_APPEARANCE: SettingsAppearanceSummary = {
   themeMode: 'dark',
+  designTheme: 'xai',
   uiFontSize: UI_FONT_SIZE_DEFAULT,
   codeFontSize: CODE_FONT_SIZE_DEFAULT,
   uiFontFamily: null,
@@ -407,6 +410,7 @@ export type SettingsUpdateRequest = {
   showFreeOnlyByDefault?: boolean;
   appearance?: {
     themeMode?: ThemeMode;
+    designTheme?: DesignTheme;
     uiFontSize?: number;
     codeFontSize?: number;
     uiFontFamily?: FontFamilyOverride;

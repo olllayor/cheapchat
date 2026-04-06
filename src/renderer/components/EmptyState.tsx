@@ -41,7 +41,7 @@ export function EmptyState({ onSuggestionClick }: EmptyStateProps) {
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
         </div>
-        <h1 className="font-code-sans text-xl font-normal text-white/70">
+        <h1 className="font-code-sans text-xl font-normal text-[var(--text-secondary)]">
           Atlas
         </h1>
       </div>

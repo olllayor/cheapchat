@@ -137,10 +137,10 @@ function ToolRow({ part }: { part: Extract<ChatMessagePart, { type: 'tool' }> })
             <ConfirmationTitle>Tool approval</ConfirmationTitle>
             <ConfirmationRequest>
               <div>
-                Approve running <span className="font-medium text-white/86">{resolvedName}</span>.
+                Approve running <span className="font-medium text-[var(--text-secondary)]">{resolvedName}</span>.
               </div>
               {part.input ? (
-                <pre className="app-code-compact mt-2 overflow-x-auto rounded-[12px] border border-white/6 bg-black/20 px-3 py-2 text-white/58">
+                <pre className="app-code-compact mt-2 overflow-x-auto rounded-[12px] border border-[var(--border-subtle)] bg-black/20 px-3 py-2 text-[var(--text-muted)]">
                   {JSON.stringify(part.input, null, 2)}
                 </pre>
               ) : null}
@@ -310,7 +310,7 @@ function MessageRow({
         <div className="max-w-[min(56%,560px)]">
           <AttachmentRow attachments={fileParts} align="end" />
           {userText ? (
-            <div className="border border-white/10 bg-transparent px-4 py-2.5">
+            <div className="border border-[var(--border-default)] bg-transparent px-4 py-2.5">
               <p className="whitespace-pre-wrap text-[13.5px] leading-[1.65rem] text-text-primary">{userText}</p>
             </div>
           ) : null}
@@ -322,7 +322,7 @@ function MessageRow({
                 className="p-1.5 text-text-faint transition hover:bg-bg-hover hover:text-text-primary"
                 title={copied ? 'Copied!' : 'Copy'}
               >
-                {copied ? <Check className="h-3.5 w-3.5 text-white/50" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? <Check className="h-3.5 w-3.5 text-[var(--text-faint)]" /> : <Copy className="h-3.5 w-3.5" />}
               </button>
             </div>
           ) : null}
@@ -353,7 +353,7 @@ function MessageRow({
             className="p-1.5 text-text-faint transition hover:bg-bg-hover hover:text-text-primary"
             title={copied ? 'Copied!' : 'Copy'}
           >
-            {copied ? <Check className="h-3.5 w-3.5 text-white/50" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? <Check className="h-3.5 w-3.5 text-[var(--text-faint)]" /> : <Copy className="h-3.5 w-3.5" />}
           </button>
           {onRegenerate ? (
             <button
