@@ -2,10 +2,11 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 
 import App from './App';
-import { initPostHog } from './lib/posthog';
+import { initPostHog, syncTelemetryStatus } from './lib/posthog';
 import './styles.css';
 
 initPostHog();
+void syncTelemetryStatus();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

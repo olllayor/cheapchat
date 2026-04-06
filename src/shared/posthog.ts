@@ -1,3 +1,6 @@
+const DEFAULT_POSTHOG_API_KEY = 'phc_mk77dSEfsouqEzCWE3eUi3wFVgCK6qNgYm7CcTdDboQX';
+const DEFAULT_POSTHOG_HOST = 'https://us.i.posthog.com';
+
 function getEnv(key: string, fallback: string) {
   if (typeof process !== 'undefined' && process.env && process.env[key]) {
     return process.env[key];
@@ -10,12 +13,22 @@ function getEnv(key: string, fallback: string) {
   return fallback;
 }
 
+export function isTelemetryEnabled(): boolean {
+  if (typeof process === 'undefined') return true;
+  const value = process.env.ATLAS_TELEMETRY_ENABLED;
+  if (value !== undefined) {
+    return value !== 'false' && value !== '0';
+  }
+  return true;
+}
+
 export const POSTHOG_CONFIG = {
-  apiKey: getEnv('POSTHOG_API_KEY', ''),
-  host: getEnv('POSTHOG_HOST', 'https://us.i.posthog.com'),
+  apiKey: getEnv('POSTHOG_API_KEY', DEFAULT_POSTHOG_API_KEY),
+  host: getEnv('POSTHOG_HOST', DEFAULT_POSTHOG_HOST),
 } as const;
 
 export const POSTHOG_EVENTS = {
+  FIRST_LAUNCH: 'first launch',
   APP_LAUNCHED: 'app launched',
   APP_CLOSED: 'app closed',
   ONBOARDING_STARTED: 'onboarding started',

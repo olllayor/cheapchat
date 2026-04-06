@@ -573,5 +573,6 @@ export type RendererApi = {
   posthog: {
     getAnonymousId: () => Promise<string>;
     captureEvent: (event: string, properties?: Record<string, unknown>) => void;
+    isTelemetryEnabled: () => Promise<boolean>;
   };
 };

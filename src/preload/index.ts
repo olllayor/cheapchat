@@ -71,7 +71,8 @@ const api: RendererApi = {
     getAnonymousId: () => ipcRenderer.invoke(IPC_CHANNELS.posthogGetAnonymousId),
     captureEvent: (event, properties) => {
       ipcRenderer.invoke(IPC_CHANNELS.posthogCaptureEvent, event, properties);
-    }
+    },
+    isTelemetryEnabled: () => ipcRenderer.invoke(IPC_CHANNELS.posthogGetTelemetryEnabled)
   }
 };
 
