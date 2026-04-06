@@ -17,6 +17,10 @@ export default defineConfig({
           chunkFileNames: 'chunks/[name]-[hash].cjs'
         }
       }
+    },
+    define: {
+      'process.env.POSTHOG_API_KEY': JSON.stringify(process.env.POSTHOG_API_KEY ?? ''),
+      'process.env.POSTHOG_HOST': JSON.stringify(process.env.POSTHOG_HOST ?? 'https://us.i.posthog.com')
     }
   },
   preload: {

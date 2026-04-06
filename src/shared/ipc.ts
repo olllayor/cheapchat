@@ -26,5 +26,6 @@ export const IPC_CHANNELS = {
   updatesPerformPrimaryAction: 'updates:performPrimaryAction',
   updatesEvent: 'updates:event',
   posthogGetAnonymousId: 'posthog:getAnonymousId',
-  posthogCaptureEvent: 'posthog:captureEvent'
+  posthogCaptureEvent: 'posthog:captureEvent',
+  posthogGetTelemetryEnabled: 'posthog:getTelemetryEnabled'
 } as const;

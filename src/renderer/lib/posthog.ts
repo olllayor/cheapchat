@@ -3,6 +3,7 @@ import posthog from 'posthog-js';
 import { POSTHOG_CONFIG } from '../../shared/posthog';
 
 let initialized = false;
+let telemetryEnabled = true;
 
 export function initPostHog() {
   if (initialized) return;
@@ -25,8 +26,17 @@ export function initPostHog() {
   }
 }
 
+export async function syncTelemetryStatus() {
+  try {
+    telemetryEnabled = await window.atlasChat.posthog.isTelemetryEnabled();
+  } catch {
+    // Default to enabled
+    telemetryEnabled = true;
+  }
+}
+
 export async function identifyUser() {
-  if (!initialized) return;
+  if (!initialized || !telemetryEnabled) return;
 
   try {
     const anonymousId = await window.atlasChat.posthog.getAnonymousId();
@@ -37,7 +47,7 @@ export async function identifyUser() {
 }
 
 export function captureEvent(event: string, properties?: Record<string, unknown>) {
-  if (!initialized) return;
+  if (!initialized || !telemetryEnabled) return;
   try {
     posthog.capture(event, properties);
   } catch (err) {
