@@ -94,12 +94,12 @@ export function SidebarSettingsMenu({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className={`flex w-full items-center rounded-xl px-2.5 py-2 text-sm text-text-tertiary outline-none transition hover:bg-[var(--bg-subtle)] hover:text-text-primary focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 ${
+          className={`flex w-full items-center rounded-xl px-2.5 py-2 ui-text-size-minus-1 text-text-tertiary outline-none transition hover:bg-[var(--bg-subtle)] hover:text-text-primary focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 ${
             collapsed ? 'justify-center' : 'gap-2'
           }`}
         >
           <GearIcon className="h-4 w-4 shrink-0" />
-          {!collapsed ? <span className="truncate text-[13px] font-medium">Settings</span> : null}
+          {!collapsed ? <span className="truncate ui-text-size-minus-2 font-medium">Settings</span> : null}
         </button>
       </DropdownMenuTrigger>
 
@@ -115,12 +115,12 @@ export function SidebarSettingsMenu({
               <PersonIcon className="h-3.5 w-3.5" />
             </span>
           <div className="min-w-0">
-            <div className="truncate text-[13px] font-normal text-[var(--text-secondary)]">Atlas local profile</div>
-            <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-[var(--text-muted)]">
+            <div className="truncate ui-text-size-minus-2 font-normal text-[var(--text-secondary)]">Atlas local profile</div>
+            <div className="mt-0.5 flex items-center gap-1.5 ui-text-size-minus-3 text-[var(--text-muted)]">
                 <DotFilledIcon className="h-3 w-3 shrink-0" />
                 <span className="truncate">{subtitle}</span>
               </div>
-              <div className="mt-1 text-[12px] text-[var(--text-faint)]">Stored on this device</div>
+              <div className="mt-1 ui-text-size-minus-3 text-[var(--text-faint)]">Stored on this device</div>
             </div>
           </div>
         </div>
@@ -129,12 +129,12 @@ export function SidebarSettingsMenu({
 
         <DropdownMenuItem
           onSelect={() => onOpenSettings('general')}
-          className="px-3 text-[13px] text-[var(--text-secondary)] focus:bg-[var(--bg-hover)] focus:text-white"
+          className="px-3 ui-text-size-minus-2 text-[var(--text-secondary)] focus:bg-[var(--bg-hover)] focus:text-white"
         >
           <GearIcon className="h-4 w-4 text-[var(--text-muted)]" />
           <span>Settings</span>
           {settingsShortcutLabel ? (
-            <DropdownMenuShortcut className="text-[10px] tracking-[0.08em] text-[var(--text-faint)]">
+            <DropdownMenuShortcut className="ui-text-size-minus-5 tracking-[0.08em] text-[var(--text-faint)]">
               {settingsShortcutLabel}
             </DropdownMenuShortcut>
           ) : (
@@ -144,25 +144,25 @@ export function SidebarSettingsMenu({
 
         <DropdownMenuItem
           onSelect={onOpenLanding}
-          className="px-3 text-[13px] text-[var(--text-secondary)] focus:bg-[var(--bg-hover)] focus:text-white"
+          className="px-3 ui-text-size-minus-2 text-[var(--text-secondary)] focus:bg-[var(--bg-hover)] focus:text-white"
         >
-          <span className="h-4 w-4 shrink-0 text-[var(--text-muted)] xai-mono text-[10px] flex items-center justify-center">{'>'}</span>
+          <span className="h-4 w-4 shrink-0 text-[var(--text-muted)] xai-mono ui-text-size-minus-5 flex items-center justify-center">{'>'}</span>
           <span>Landing page</span>
           <ChevronRightIcon className="ml-auto h-4 w-4 text-[var(--text-faint)]" />
         </DropdownMenuItem>
 
         <DropdownMenuItem
           onSelect={() => onOpenSettings('usage')}
-          className="px-3 text-[13px] text-[var(--text-secondary)] focus:bg-[var(--bg-hover)] focus:text-white"
+          className="px-3 ui-text-size-minus-2 text-[var(--text-secondary)] focus:bg-[var(--bg-hover)] focus:text-white"
         >
           <TimerIcon className="h-4 w-4 text-[var(--text-muted)]" />
           <span>Usage & limits</span>
-          <span className="ml-auto text-[11px] text-[var(--text-faint)]">{usageLabel}</span>
+          <span className="ml-auto ui-text-size-minus-4 text-[var(--text-faint)]">{usageLabel}</span>
         </DropdownMenuItem>
 
         <DropdownMenuItem
           onSelect={onRefreshModels}
-          className="px-3 text-[13px] text-[var(--text-secondary)] focus:bg-[var(--bg-hover)] focus:text-white"
+          className="px-3 ui-text-size-minus-2 text-[var(--text-secondary)] focus:bg-[var(--bg-hover)] focus:text-white"
         >
           <ReloadIcon className={`h-4 w-4 text-[var(--text-muted)] ${isRefreshingModels ? 'animate-spin' : ''}`} />
           <span>{isRefreshingModels ? 'Refreshing catalog…' : 'Refresh model catalog'}</span>
@@ -170,7 +170,7 @@ export function SidebarSettingsMenu({
 
         <DropdownMenuItem
           onSelect={onCheckForUpdates}
-          className="px-3 text-[13px] text-[var(--text-secondary)] focus:bg-[var(--bg-hover)] focus:text-white"
+          className="px-3 ui-text-size-minus-2 text-[var(--text-secondary)] focus:bg-[var(--bg-hover)] focus:text-white"
         >
           <UpdateIcon className={`h-4 w-4 text-[var(--text-muted)] ${updateState.status === 'checking' ? 'animate-spin' : ''}`} />
           <span>{getUpdateLabel(updateState)}</span>

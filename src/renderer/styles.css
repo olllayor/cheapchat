@@ -488,6 +488,30 @@ button, input, [role="option"], [role="button"] {
   line-height: 1;
 }
 
+.ui-text-size-base {
+  font-size: var(--ui-font-size);
+}
+
+.ui-text-size-minus-1 {
+  font-size: calc(var(--ui-font-size) - 1px);
+}
+
+.ui-text-size-minus-2 {
+  font-size: calc(var(--ui-font-size) - 2px);
+}
+
+.ui-text-size-minus-3 {
+  font-size: calc(var(--ui-font-size) - 3px);
+}
+
+.ui-text-size-minus-4 {
+  font-size: calc(var(--ui-font-size) - 4px);
+}
+
+.ui-text-size-minus-5 {
+  font-size: calc(var(--ui-font-size) - 5px);
+}
+
 .card {
   border-radius: var(--radius-md);
   border: 1px solid var(--border-default);

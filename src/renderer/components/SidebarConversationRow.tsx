@@ -37,7 +37,7 @@ export function SidebarConversationRow({
       <div className="relative flex items-center justify-center">
         <span
           aria-hidden="true"
-          className={`flex h-8 w-8 items-center justify-center border text-[11px] font-normal tracking-[0.01em] transition ${
+          className={`flex h-8 w-8 items-center justify-center border ui-text-size-minus-4 font-normal tracking-[0.01em] transition ${
             isActive
               ? 'border-[var(--border-strong)] bg-[var(--bg-active)] text-[var(--text-secondary)]'
               : 'border-[var(--border-default)] bg-transparent text-[var(--text-muted)] group-hover:border-[var(--border-strong)] group-hover:bg-[var(--bg-hover)] group-hover:text-[var(--text-secondary)]'
@@ -61,12 +61,12 @@ export function SidebarConversationRow({
       ) : null}
 
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[13px] font-normal leading-[18px] text-[var(--text-secondary)]" title={primaryLabel}>
+        <div className="truncate ui-text-size-minus-2 font-normal leading-[18px] text-[var(--text-secondary)]" title={primaryLabel}>
           {primaryLabel}
         </div>
         {secondaryLabel ? (
           <div
-            className={`truncate pt-0.5 text-[11px] leading-4 ${
+            className={`truncate pt-0.5 ui-text-size-minus-4 leading-4 ${
               status === 'streaming'
                 ? 'animate-pulse text-[var(--text-faint)]'
                 : status === 'error'
@@ -85,7 +85,7 @@ export function SidebarConversationRow({
       <div className="relative ml-2 h-4 w-5 shrink-0 self-start">
         {timestampLabel ? (
           <span
-            className={`absolute inset-0 text-right text-[10px] font-normal leading-4 tabular-nums text-[var(--text-faint)] transition-opacity group-hover:opacity-0 ${
+            className={`absolute inset-0 text-right ui-text-size-minus-5 font-normal leading-4 tabular-nums text-[var(--text-faint)] transition-opacity group-hover:opacity-0 ${
               hideTimestamp || showJumpHint ? 'opacity-0' : ''
             }`}
           >
@@ -93,7 +93,7 @@ export function SidebarConversationRow({
           </span>
         ) : null}
         {showJumpHint && jumpLabel ? (
-          <span className="absolute right-0 top-0 inline-flex h-5 items-center border border-[var(--border-default)] bg-[var(--bg-hover)] px-1.5 font-mono text-[10px] leading-none text-[var(--text-tertiary)]">
+          <span className="absolute right-0 top-0 inline-flex h-5 items-center border border-[var(--border-default)] bg-[var(--bg-hover)] px-1.5 font-mono ui-text-size-minus-5 leading-none text-[var(--text-tertiary)]">
             {jumpLabel}
           </span>
         ) : null}
